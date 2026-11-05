@@ -11,8 +11,14 @@ import json
 import logging
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any
+
+# Ensure repository root is on sys.path for gta_hub imports
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from gta_hub.views import resolve_vehicle_image
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 log = logging.getLogger("seed_catalogue")
@@ -81,14 +87,24 @@ def sanitize_vehicle(raw: dict[str, Any], base_url: str = "") -> dict[str, Any]:
         "_catalog_source": "first-party",
     }
 
-    # Retain useful technical specs if present while purging external links
+    # Retain useful technical specs while purging external links or raw internal hashes
     spec_fields = (
         "storage", "dlc", "gears", "weight_kg", "tier",
-        "brake_force", "cornering_grip", "straight_line_grip", "off_road_grip_loss"
+        "brake_force", "cornering_grip", "straight_line_grip", "off_road_grip_loss",
     )
     for field in spec_fields:
         if field in raw and raw[field] not in (None, ""):
             result[field] = raw[field]
+
+    # Assign clean image_url if a local asset exists or safe URL is present
+    raw_img = raw.get("image_url")
+    if isinstance(raw_img, str) and (raw_img.startswith("http://") or raw_img.startswith("https://")):
+        result["image_url"] = raw_img
+    else:
+        assets_dir = Path.cwd() / "assets" / "images"
+        matched_img = resolve_vehicle_image(result, assets_dir=assets_dir)
+        if matched_img:
+            result["image_url"] = f"{clean_base}/images/{matched_img.name}" if clean_base else f"/images/{matched_img.name}"
 
     return result
 

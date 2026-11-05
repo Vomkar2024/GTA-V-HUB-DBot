@@ -14,6 +14,8 @@ from typing import Any
 
 from aiohttp import web
 
+from gta_hub.views import resolve_vehicle_image
+
 logger = logging.getLogger("gta_v_hub.api")
 
 
@@ -68,6 +70,17 @@ def format_vehicle_for_api(raw: dict[str, Any], base_url: str = "") -> dict[str,
     clean_base = base_url.rstrip("/") if base_url else ""
     url = f"{clean_base}/vehicles/{slug}" if clean_base else f"/vehicles/{slug}"
 
+    image_url: str | None = None
+    raw_img = raw.get("image_url") or raw.get("image")
+    if isinstance(raw_img, str) and (raw_img.startswith("http://") or raw_img.startswith("https://")):
+        image_url = raw_img
+    else:
+        assets_dir = Path.cwd() / "assets" / "images"
+        matched_img = resolve_vehicle_image(raw, assets_dir=assets_dir)
+        if matched_img:
+            img_file = matched_img.name
+            image_url = f"{clean_base}/images/{img_file}" if clean_base else f"/images/{img_file}"
+
     return {
         "id": slug,
         "_name": name,
@@ -91,6 +104,7 @@ def format_vehicle_for_api(raw: dict[str, Any], base_url: str = "") -> dict[str,
         "seats": seats,
         "description": description,
         "url": url,
+        "image_url": image_url,
         "_catalog_source": "first-party",
     }
 
@@ -268,6 +282,10 @@ def create_app(data_dir: Path | str | None = None, base_url: str = "") -> web.Ap
         app["controller"] = controller
 
     # Routes mirroring existing API structure
+    assets_dir = Path.cwd() / "assets" / "images"
+    if assets_dir.is_dir():
+        app.router.add_static("/images", str(assets_dir), show_index=False)
+
     app.router.add_get("/api", controller.handle_vehicles)
     app.router.add_get("/api/", controller.handle_vehicles)
     app.router.add_get("/api/vehicles", controller.handle_vehicles)

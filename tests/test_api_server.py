@@ -178,6 +178,7 @@ class ApiServerUnitTests(unittest.TestCase):
     def test_create_app_routes(self) -> None:
         app = create_app(data_dir=self.data_dir, base_url="http://127.0.0.1:8080")
         routes = [route.resource.canonical for route in app.router.routes()]
+        self.assertIn("/images", routes)
         self.assertIn("/api", routes)
         self.assertIn("/api/vehicles", routes)
         self.assertIn("/api/wheels", routes)

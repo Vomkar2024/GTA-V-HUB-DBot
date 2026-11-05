@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from typing import Any
 
 import discord
@@ -115,7 +117,9 @@ class CatalogSelect(discord.ui.Select):
             await interaction.response.defer()
             return
         row = self.rows[int(self.values[0])]
-        await interaction.response.edit_message(embed=entry_embed(self.kind, row), view=self.view)
+        embed, file = build_entry_embed_and_file(self.kind, row)
+        attachments = [file] if file is not None else []
+        await interaction.response.edit_message(embed=embed, attachments=attachments, view=self.view)
 
 
 class CatalogResultsView(discord.ui.View):
@@ -124,7 +128,129 @@ class CatalogResultsView(discord.ui.View):
         self.add_item(CatalogSelect(rows, kind=kind))
 
 
-def entry_embed(kind: str, row: dict[str, Any]) -> discord.Embed:
+ROMAN_NUMERALS: dict[str, str] = {
+    "viii": "8",
+    "vii": "7",
+    "vi": "6",
+    "iv": "4",
+    "v": "5",
+    "iii": "3",
+    "ii": "2",
+    "i": "1",
+}
+
+
+def resolve_vehicle_image(row: dict[str, Any], assets_dir: Path | str | None = None) -> Path | None:
+    """Find a matching vehicle image file from the assets/images directory."""
+    if assets_dir is None:
+        base_dir = Path("assets/images")
+    else:
+        base_dir = Path(assets_dir)
+        if base_dir.name != "images":
+            base_dir = base_dir / "images"
+
+    if not base_dir.is_dir():
+        base_dir = Path.cwd() / "assets" / "images"
+        if not base_dir.is_dir():
+            return None
+
+    # Check direct image_url if provided
+    direct_img = str(row.get("image_url") or "").strip()
+    if direct_img:
+        cand_name = Path(direct_img).name
+        if cand_name and (base_dir / cand_name).is_file():
+            return base_dir / cand_name
+
+    name = str(row.get("name") or "").strip().lower()
+    model = str(row.get("model") or "").strip().lower()
+    vid = str(row.get("id") or "").strip().lower()
+    manuf = str(row.get("manufacturer") or "").strip().lower()
+
+    candidates: list[str] = []
+
+    # Model and ID candidates
+    for token in (model, vid):
+        if not token:
+            continue
+        candidates.append(f"{token}.png")
+        clean_tok = re.sub(r"[^a-z0-9]", "", token)
+        if clean_tok:
+            candidates.append(f"{clean_tok}.png")
+
+    if name:
+        # Build variants of name: original, with Roman numerals converted, and without parentheticals
+        name_variants: list[str] = [name]
+
+        # Convert Roman numerals (e.g. "baller ii" -> "baller 2")
+        words = name.split()
+        converted_words = [ROMAN_NUMERALS.get(w.strip("()"), w.strip("()")) for w in words]
+        name_converted = " ".join(converted_words)
+        if name_converted != name:
+            name_variants.append(name_converted)
+
+        # Strip parentheticals (e.g. "daemon (custom)" -> "daemon")
+        no_paren = re.sub(r"\(.*?\)", "", name).strip()
+        if no_paren and no_paren != name:
+            name_variants.append(no_paren)
+            words_np = no_paren.split()
+            conv_np = " ".join(ROMAN_NUMERALS.get(w.strip("()"), w.strip("()")) for w in words_np)
+            if conv_np != no_paren:
+                name_variants.append(conv_np)
+
+        for n in name_variants:
+            clean_name = re.sub(r"[^a-z0-9]+", "-", n).strip("-")
+            if clean_name:
+                candidates.append(f"{clean_name}.png")
+            clean_name_num = re.sub(r"[^a-z0-9]", "", n)
+            if clean_name_num:
+                candidates.append(f"{clean_name_num}.png")
+
+            # Strip manufacturer prefix (e.g. "Albany Alpha" -> "Alpha", "Western Daemon" -> "Daemon")
+            if manuf and n.startswith(manuf):
+                stripped = n[len(manuf):].strip()
+                stripped_slug = re.sub(r"[^a-z0-9]+", "-", stripped).strip("-")
+                if stripped_slug:
+                    candidates.append(f"{stripped_slug}.png")
+                clean_stripped = re.sub(r"[^a-z0-9]", "", stripped)
+                if clean_stripped:
+                    candidates.append(f"{clean_stripped}.png")
+
+    for cand in candidates:
+        if not cand or cand == ".png":
+            continue
+        path = base_dir / cand
+        if path.is_file():
+            return path
+
+    return None
+
+
+def build_entry_embed_and_file(
+    kind: str,
+    row: dict[str, Any],
+    assets_dir: Path | str | None = None,
+) -> tuple[discord.Embed, discord.File | None]:
+    """Build the detail embed and attach a matching vehicle image file if available."""
+    file: discord.File | None = None
+    attachment_filename: str | None = None
+
+    if kind == "vehicles":
+        image_path = resolve_vehicle_image(row, assets_dir=assets_dir)
+        if image_path:
+            slug = str(row.get("id") or row.get("model") or "vehicle").strip().lower()
+            slug = re.sub(r"[^a-z0-9_]+", "_", slug) or "vehicle"
+            attachment_filename = f"{slug}.png"
+            file = discord.File(fp=str(image_path), filename=attachment_filename)
+
+    embed = entry_embed(kind, row, attachment_filename=attachment_filename)
+    return embed, file
+
+
+def entry_embed(
+    kind: str,
+    row: dict[str, Any],
+    attachment_filename: str | None = None,
+) -> discord.Embed:
     title = str(row.get("name") or row.get("title") or "GTA V HUB Entry")
     description = row.get("description")
     embed = make_embed(title, truncate(description, 3500) if description else None)
@@ -143,7 +269,17 @@ def entry_embed(kind: str, row: dict[str, Any]) -> discord.Embed:
     link = safe_url(row.get("url"))
     if link:
         embed.add_field(name="Link", value=f"[Catalogue details]({link})", inline=False)
-    image = safe_url(row.get("image_url"))
-    if kind == "vehicles" and image:
-        embed.set_thumbnail(url=image)
+
+    if kind == "vehicles":
+        if attachment_filename:
+            embed.set_image(url=f"attachment://{attachment_filename}")
+        else:
+            image = safe_url(row.get("image_url"))
+            if image:
+                embed.set_image(url=image)
+    else:
+        thumb = safe_url(row.get("image_url") or row.get("thumbnail"))
+        if thumb:
+            embed.set_thumbnail(url=thumb)
+
     return embed

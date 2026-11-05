@@ -5,7 +5,7 @@ from typing import Any
 import discord
 
 from gta_hub.branding import make_embed, truncate
-from gta_hub.views import CatalogResultsView
+from gta_hub.views import CatalogResultsView, build_entry_embed_and_file
 
 
 async def show_catalog_results(
@@ -18,6 +18,13 @@ async def show_catalog_results(
     if not rows:
         embed = make_embed("No matches found", f"No **{kind}** matched `{truncate(query, 100)}`. Try another search or add entries to the matching JSON catalog.")
         await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    if len(rows) == 1:
+        embed, file = build_entry_embed_and_file(kind, rows[0])
+        files = [file] if file is not None else []
+        view = CatalogResultsView(rows, kind=kind)
+        await interaction.response.send_message(embed=embed, files=files, view=view, ephemeral=True)
         return
 
     embed = make_embed(

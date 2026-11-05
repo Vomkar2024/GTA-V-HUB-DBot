@@ -360,6 +360,7 @@ When running `server.py`, the following HTTP endpoints are provided:
 | `GET` | `/api/vehicles/{id}` | — | Single vehicle details by ID or name slug. |
 | `GET` | `/api/wheels` | `format` (`list` or object) | Full wheel catalog with physics handling effects. |
 | `GET` | `/api/wheels.json` | — | Alias for `/api/wheels`. |
+| `GET` | `/images/{filename}` | — | Static vehicle raster imagery (PNG) with authentic in-game backgrounds. |
 
 ---
 
@@ -496,7 +497,7 @@ The bot sends an HTTP GET request with a `url` query parameter containing the Ro
 
 ### Running Tests
 
-The test suite contains 62 automated unit tests verifying API endpoints, catalog operations, sync adapters, channel restrictions, command tree synchronization, and autocomplete handlers.
+The test suite contains 72 automated unit tests verifying API endpoints, catalog operations, sync adapters, channel restrictions, command tree synchronization, and autocomplete handlers.
 
 Run using Python's built-in `unittest`:
 ```bash
@@ -531,7 +532,7 @@ Contributions to GTA V HUB are welcome. Please follow these steps:
    git checkout -b feature/my-new-feature
    ```
 3. **Commit Your Changes**: Follow clear and concise commit conventions.
-4. **Run the Test Suite**: Ensure all 62 tests pass and add new tests for your feature:
+4. **Run the Test Suite**: Ensure all 72 tests pass and add new tests for your feature:
    ```bash
    python -m unittest discover -s tests -v
    python -m compileall -q bot.py server.py gta_hub scripts tests
