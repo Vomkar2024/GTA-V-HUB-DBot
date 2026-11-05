@@ -133,7 +133,7 @@ class HubAdmin(commands.GroupCog, group_name="hubadmin", group_description="GTA 
             ephemeral=True,
         )
 
-    @app_commands.command(name="sync-catalogs", description="Import the public vehicle and wheel catalogues")
+    @app_commands.command(name="sync-catalogs", description="Synchronize vehicle and wheel catalogues from the configured catalogue API")
     @app_commands.choices(catalogue=[
         app_commands.Choice(name="Vehicles and wheels", value="all"),
         app_commands.Choice(name="Vehicles only", value="vehicles"),
@@ -162,7 +162,7 @@ class HubAdmin(commands.GroupCog, group_name="hubadmin", group_description="GTA 
                 embed=make_embed(
                     "Catalogue sync failed",
                     f"`{type(exc).__name__}`: {str(exc)[:700]}\n\n"
-                    "Check the terminal and try again later. Existing local catalogue files are retained if the provider request fails.",
+                    "Check the terminal for details. Existing local catalogue files are retained when a sync request fails.",
                 ),
                 ephemeral=True,
             )

@@ -39,8 +39,8 @@ HELP_SECTIONS: dict[str, str] = {
         "`/cars` — Search vehicles using the shared vehicle catalogue.\n"
         "`/garage` — View, add, and remove saved vehicles.\n"
         "`/compare` — Compare two vehicles.\n"
-        "`/profile` and `/stats` — Player lookup surfaces (a permitted public provider is required).\n"
-        "`/crew` and `/jobs` — Best-effort legacy Rockstar lookups.\n"
+        "`/profile` and `/stats` — Player lookup surfaces.\n"
+        "`/crew` and `/jobs` — Best-effort legacy lookup commands.\n"
         "`/daily` — Claim daily HUB credits (not GTA$)."
     ),
     "Links & Help": (
@@ -49,7 +49,7 @@ HELP_SECTIONS: dict[str, str] = {
         "`/ping` — Check bot latency.\n"
         "`/hubadmin status` — Owner-only runtime status.\n"
         "`/hubadmin sync` — Sync application commands and resolve duplicates.\n"
-        "`/hubadmin sync-catalogs` — Import public vehicle and wheel catalogues.\n"
+        "`/hubadmin sync-catalogs` — Synchronize vehicle and wheel catalogues.\n"
         "`/hubadmin add-vehicle` — Add a local vehicle entry."
     ),
 }
@@ -142,7 +142,7 @@ def entry_embed(kind: str, row: dict[str, Any]) -> discord.Embed:
 
     link = safe_url(row.get("url"))
     if link:
-        embed.add_field(name="Link", value=f"[Open source page]({link})", inline=False)
+        embed.add_field(name="Link", value=f"[Catalogue details]({link})", inline=False)
     image = safe_url(row.get("image_url"))
     if kind == "vehicles" and image:
         embed.set_thumbnail(url=image)

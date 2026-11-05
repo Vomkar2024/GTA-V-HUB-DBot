@@ -1,9 +1,8 @@
-"""Respectful public catalogue adapters for GTA V HUB.
+"""First-party catalogue sync service for GTA V HUB • Los Santos Network.
 
-The vehicle endpoint follows the public GTACars API pattern referenced by the
-GTALens project. The wheel importer reads the public GTALens wheel JSON file.
-Check source terms before redistribution. No proxy rotation or rate-limit
-bypass is used.
+Connects to the self-hosted catalogue API configured via CATALOGUE_API_BASE_URL.
+Safely updates local catalogue stores while preserving manual entries and
+retaining local fallback data whenever external endpoints are unreachable.
 """
 from __future__ import annotations
 
@@ -20,9 +19,8 @@ import aiohttp
 
 log = logging.getLogger("gta_v_hub.catalog_sync")
 
-VEHICLE_API = "https://gtacars.net/api/?game=gta5&page={page}&perPage=60&sort=alphabet&sortReverse=false&q="
-WHEELS_JSON = "https://raw.githubusercontent.com/nosv1/GTALens/dev/wheels.json"
-USER_AGENT = "GTA-V-HUB-Community-Bot/1.0 (low-rate catalogue sync)"
+DEFAULT_BASE_URL_PLACEHOLDER = "https://catalogue.placeholder.local"
+USER_AGENT = "GTA-V-HUB/1.0 (Los Santos Network Catalogue Sync)"
 
 CLASS_NAMES: dict[str, str] = {
     "boat": "Boats",
@@ -51,6 +49,10 @@ CLASS_NAMES: dict[str, str] = {
 }
 
 
+class CatalogueSyncError(RuntimeError):
+    """Raised when a catalogue synchronization fails while retaining local files."""
+
+
 def _number(value: Any) -> float | None:
     try:
         return float(value) if value not in (None, "") else None
@@ -58,52 +60,98 @@ def _number(value: Any) -> float | None:
         return None
 
 
-def normalize_vehicle(raw: dict[str, Any]) -> dict[str, Any] | None:
-    name = raw.get("_name")
+def normalize_vehicle(raw: dict[str, Any], base_url: str = "") -> dict[str, Any] | None:
+    name = raw.get("name") or raw.get("_name")
     if not isinstance(name, str) or not name.strip():
         return None
-    class_code = raw.get("_class")
-    price = _number(raw.get("_priceMp"))
-    lap_ms = _number(raw.get("_lapTime"))
-    vehicle_id = str(raw.get("id") or "")
+    class_code = raw.get("class") or raw.get("_class")
+    raw_price = raw.get("price") if raw.get("price") is not None else raw.get("_priceMp")
+    price = _number(raw_price)
+    raw_lap = raw.get("lap_time") if raw.get("lap_time") is not None else raw.get("_lapTime")
+    lap_ms = _number(raw_lap)
+    vehicle_id = str(raw.get("id") or raw.get("slug") or "")
+
+    clean_base = base_url.rstrip("/") if base_url else ""
+    if vehicle_id and clean_base:
+        url = f"{clean_base}/vehicles/{vehicle_id}"
+    elif clean_base:
+        url = f"{clean_base}/vehicles"
+    elif vehicle_id:
+        url = f"/vehicles/{vehicle_id}"
+    else:
+        url = "/vehicles"
+
+    if price is not None and "_priceMp" in raw and "price" not in raw:
+        price_val = int(price * 1000)
+    elif price is not None:
+        price_val = int(price)
+    else:
+        price_val = None
+
+    if lap_ms is not None and lap_ms > 1000:
+        lap_time_sec: float | None = lap_ms / 1000.0
+    else:
+        lap_time_sec = lap_ms
+
     return {
         "name": name.strip(),
-        "manufacturer": str(raw.get("_manuf") or "Unknown").title(),
+        "manufacturer": str(raw.get("manufacturer") or raw.get("_manuf") or "Unknown").title(),
         "class": CLASS_NAMES.get(str(class_code), str(class_code or "Unknown").replace("_", " ").title()),
-        "price": int(price * 1000) if price is not None else None,
-        "drivetrain": str(raw.get("_dt") or "Unknown").upper(),
-        "model": str(raw.get("_model") or ""),
-        "lap_time": lap_ms / 1000 if lap_ms is not None else None,
-        "top_speed": _number(raw.get("_topSpeed")),
-        "seats": raw.get("_seats"),
-        "description": str(raw.get("_description") or "")[:1500],
-        "url": f"https://gtacars.net/gta5/{vehicle_id}" if vehicle_id else "https://gtacars.net/gta5",
-        "_catalog_source": "gtacars",
+        "price": price_val,
+        "drivetrain": str(raw.get("drivetrain") or raw.get("_dt") or "Unknown").upper(),
+        "model": str(raw.get("model") or raw.get("_model") or ""),
+        "lap_time": lap_time_sec,
+        "top_speed": _number(raw.get("top_speed") or raw.get("_topSpeed")),
+        "seats": raw.get("seats") or raw.get("_seats"),
+        "description": str(raw.get("description") or raw.get("_description") or "")[:1500],
+        "url": url,
+        "_catalog_source": "first-party",
     }
 
 
 def normalize_wheels(payload: Any) -> list[dict[str, Any]]:
-    if not isinstance(payload, dict):
-        raise ValueError("Wheel provider response was not a JSON object.")
     rows: list[dict[str, Any]] = []
-    for key, raw in payload.items():
-        if not isinstance(raw, dict):
-            continue
-        effects = raw.get("wheel_effects") or {}
-        if not isinstance(effects, dict):
-            effects = {}
-        rows.append({
-            "name": str(raw.get("name") or str(key).split(" (")[0]),
-            "type": str(raw.get("wheel_type") or "Unknown"),
-            "price": raw.get("price"),
-            "suggested": raw.get("suggested_state"),
-            "traction_bias": effects.get("bias"),
-            "slip_angle": effects.get("slip_angle"),
-            "anti_roll": effects.get("anti_roll"),
-            "description": str(effects.get("note") or "")[:500],
-            "_catalog_source": "gtalens-wheel-reference",
-        })
-    return rows
+    if isinstance(payload, dict):
+        for key, raw in payload.items():
+            if not isinstance(raw, dict):
+                continue
+            effects = raw.get("wheel_effects") or {}
+            if not isinstance(effects, dict):
+                effects = {}
+            rows.append({
+                "name": str(raw.get("name") or str(key).split(" (")[0]),
+                "type": str(raw.get("wheel_type") or raw.get("type") or "Unknown"),
+                "price": raw.get("price"),
+                "suggested": raw.get("suggested_state") or raw.get("suggested"),
+                "traction_bias": effects.get("bias", raw.get("traction_bias")),
+                "slip_angle": effects.get("slip_angle", raw.get("slip_angle")),
+                "anti_roll": effects.get("anti_roll", raw.get("anti_roll")),
+                "description": str(effects.get("note", raw.get("description", "")))[:500],
+                "_catalog_source": "first-party",
+            })
+        return rows
+
+    if isinstance(payload, list):
+        for raw in payload:
+            if not isinstance(raw, dict):
+                continue
+            effects = raw.get("wheel_effects") or {}
+            if not isinstance(effects, dict):
+                effects = {}
+            rows.append({
+                "name": str(raw.get("name") or "Unnamed Wheel"),
+                "type": str(raw.get("wheel_type") or raw.get("type") or "Unknown"),
+                "price": raw.get("price"),
+                "suggested": raw.get("suggested_state") or raw.get("suggested"),
+                "traction_bias": effects.get("bias", raw.get("traction_bias")),
+                "slip_angle": effects.get("slip_angle", raw.get("slip_angle")),
+                "anti_roll": effects.get("anti_roll", raw.get("anti_roll")),
+                "description": str(effects.get("note", raw.get("description", "")))[:500],
+                "_catalog_source": "first-party",
+            })
+        return rows
+
+    raise ValueError("Wheel catalogue response was neither a JSON object nor an array.")
 
 
 async def _fetch_json(session: aiohttp.ClientSession, url: str) -> Any:
@@ -130,7 +178,7 @@ def _write_catalog(
         except (OSError, json.JSONDecodeError):
             raise ValueError(f"Cannot safely replace invalid catalogue file: {path}")
 
-    # Replace only records previously imported from this provider. Preserve local/manual records.
+    # Replace only records previously imported from this source. Preserve local/manual records.
     merged = [row for row in existing if row.get("_catalog_source") != source]
     seen: set[tuple[str, ...]] = set()
     for row in remote_rows:
@@ -156,8 +204,16 @@ def _write_catalog(
 
 
 class CatalogSyncService:
-    def __init__(self, data_dir: Path) -> None:
+    def __init__(self, data_dir: Path, base_url: str | None = None) -> None:
         self.data_dir = Path(data_dir)
+        configured = base_url or os.getenv("CATALOGUE_API_BASE_URL") or DEFAULT_BASE_URL_PLACEHOLDER
+        self.base_url = configured.strip().rstrip("/")
+
+    def vehicle_endpoint(self, page: int) -> str:
+        return f"{self.base_url}/api/?game=gta5&page={page}&perPage=60&sort=alphabet&sortReverse=false&q="
+
+    def wheels_endpoint(self) -> str:
+        return f"{self.base_url}/api/wheels"
 
     def _record_success(self, kind: str, count: int) -> None:
         log_path = self.data_dir / "catalog_sync_history.json"
@@ -205,25 +261,71 @@ class CatalogSyncService:
     async def sync_vehicles(self) -> int:
         timeout = aiohttp.ClientTimeout(total=30)
         rows: list[dict[str, Any]] = []
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            for page in range(1, 101):
-                payload = await _fetch_json(session, VEHICLE_API.format(page=page))
-                if not isinstance(payload, dict) or not payload.get("status"):
-                    raise RuntimeError(f"Vehicle provider returned an unsuccessful response on page {page}.")
-                page_rows = (payload.get("payload") or {}).get("vehicles") or []
-                if not isinstance(page_rows, list):
-                    raise ValueError("Vehicle provider returned an unexpected vehicles list.")
-                if not page_rows:
-                    break
-                rows.extend(
-                    item for raw in page_rows if isinstance(raw, dict)
-                    if (item := normalize_vehicle(raw)) is not None
-                )
-                await asyncio.sleep(0.75)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                for page in range(1, 101):
+                    url = self.vehicle_endpoint(page)
+                    try:
+                        payload = await _fetch_json(session, url)
+                    except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError) as exc:
+                        log.error(
+                            "Failed to sync vehicle catalogue from '%s': %s. "
+                            "Ensure CATALOGUE_API_BASE_URL is reachable and configured. "
+                            "Existing local vehicle catalogue files were retained.",
+                            url,
+                            exc,
+                        )
+                        raise CatalogueSyncError(
+                            f"Could not connect to catalogue endpoint '{url}' ({exc}). "
+                            "Existing local vehicle data retained."
+                        ) from exc
+
+                    if not isinstance(payload, dict) or not payload.get("status"):
+                        log.error(
+                            "Vehicle catalogue endpoint '%s' returned an error or non-successful status. "
+                            "Existing local vehicle catalogue files were retained.",
+                            url,
+                        )
+                        raise CatalogueSyncError(
+                            f"Vehicle catalogue endpoint '{url}' returned an unsuccessful status. "
+                            "Existing local vehicle data retained."
+                        )
+
+                    page_rows = (payload.get("payload") or {}).get("vehicles") or []
+                    if not isinstance(page_rows, list):
+                        log.error(
+                            "Vehicle catalogue endpoint returned unexpected payload format. "
+                            "Existing local vehicle catalogue files were retained."
+                        )
+                        raise CatalogueSyncError(
+                            "Vehicle catalogue returned an unexpected format. Existing local vehicle data retained."
+                        )
+
+                    if not page_rows:
+                        break
+
+                    rows.extend(
+                        item for raw in page_rows if isinstance(raw, dict)
+                        if (item := normalize_vehicle(raw, self.base_url)) is not None
+                    )
+                    await asyncio.sleep(0.05)
+        except CatalogueSyncError:
+            raise
+        except Exception as exc:
+            log.error(
+                "Unexpected error during vehicle catalogue sync from '%s': %s. "
+                "Existing local vehicle catalogue files were retained.",
+                self.base_url,
+                exc,
+            )
+            raise CatalogueSyncError(
+                f"Vehicle catalogue sync failed: {exc}. Existing local vehicle data retained."
+            ) from exc
+
         count = _write_catalog(
             self.data_dir / "vehicles.json",
             rows,
-            "gtacars",
+            "first-party",
             ("manufacturer", "name"),
         )
         self._record_success("vehicles", count)
@@ -231,13 +333,42 @@ class CatalogSyncService:
 
     async def sync_wheels(self) -> int:
         timeout = aiohttp.ClientTimeout(total=25)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            payload = await _fetch_json(session, WHEELS_JSON)
-        rows = normalize_wheels(payload)
+        url = self.wheels_endpoint()
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                try:
+                    payload = await _fetch_json(session, url)
+                except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError) as exc:
+                    log.error(
+                        "Failed to sync wheel catalogue from '%s': %s. "
+                        "Ensure CATALOGUE_API_BASE_URL is reachable and configured. "
+                        "Existing local wheel catalogue files were retained.",
+                        url,
+                        exc,
+                    )
+                    raise CatalogueSyncError(
+                        f"Could not connect to wheel catalogue endpoint '{url}' ({exc}). "
+                        "Existing local wheel data retained."
+                    ) from exc
+
+            rows = normalize_wheels(payload)
+        except CatalogueSyncError:
+            raise
+        except Exception as exc:
+            log.error(
+                "Unexpected error during wheel catalogue sync from '%s': %s. "
+                "Existing local wheel catalogue files were retained.",
+                self.base_url,
+                exc,
+            )
+            raise CatalogueSyncError(
+                f"Wheel catalogue sync failed: {exc}. Existing local wheel data retained."
+            ) from exc
+
         count = _write_catalog(
             self.data_dir / "wheels.json",
             rows,
-            "gtalens-wheel-reference",
+            "first-party",
             ("name", "type"),
         )
         self._record_success("wheels", count)
@@ -254,4 +385,3 @@ class CatalogSyncService:
                 "wheels": await self.sync_wheels(),
             }
         raise ValueError(f"Unknown catalogue: {kind}")
-

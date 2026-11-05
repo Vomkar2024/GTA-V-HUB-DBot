@@ -21,6 +21,7 @@ class Settings:
     weather_api_url: str | None
     sync_api_url: str | None
     log_level: str
+    catalogue_api_base_url: str | None = None
     enable_legacy_commands: bool = True
     clear_global_on_startup: bool = False
 
@@ -62,6 +63,7 @@ class Settings:
             weather_api_url=_optional_url("GTA_HUB_WEATHER_API_URL"),
             sync_api_url=_optional_url("GTA_HUB_SYNC_API_URL"),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+            catalogue_api_base_url=os.getenv("CATALOGUE_API_BASE_URL", "").strip() or "https://catalogue.placeholder.local",
             enable_legacy_commands=_bool_env("ENABLE_LEGACY_COMMANDS", default=True),
             clear_global_on_startup=_bool_env("CLEAR_GLOBAL_ON_STARTUP", default=False),
         )

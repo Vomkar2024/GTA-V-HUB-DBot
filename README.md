@@ -1,240 +1,487 @@
 # GTA V HUB
 
-A fresh, modular Discord companion bot for GTA Online. The project uses a **black + neon-purple** visual identity, slash commands, interactive help menus, and searchable local catalogs.
+[![CI](https://github.com/Vomkar2024/GTA-V-HUB-DBot/actions/workflows/ci.yml/badge.svg)](https://github.com/Vomkar2024/GTA-V-HUB-DBot/actions/workflows/ci.yml)
+![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
+![discord.py 2.4+](https://img.shields.io/badge/discord.py-2.4+-5865F2.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **Status:** modular Discord bot implementation. The bot framework, slash-command structure, embeds, interactive views, local catalog search, community links, public catalogue synchronization, and test suites are fully implemented. Vehicle, wheel, job, and creator records start with empty arrays; use `/hubadmin sync-catalogs` to import public datasets or add your own data. Live weather and Social Club job-sync require an optional provider endpoint.
+A modular, asynchronous Discord companion bot for GTA Online communities and Discord servers. Built with `discord.py` 2.4+, **GTA V HUB** features an asynchronous SQLite persistence layer, typo-tolerant local catalog search, interactive UI menus with custom neon-purple branding, channel-scoped execution controls, and automated dataset synchronization.
 
-## Feature map
+---
 
-| Area | Commands | Data source |
-| --- | --- | --- |
-| Help & setup | `/help`, `/invite`, `/support`, `/ping` | Built in |
-| Community profile | `/community link`, `/community profile`, `/community stats` | SQLite |
-| Vehicles | `/vehicle search`, `/vehicle class`, `/vehicle tier` | `data/vehicles.json` |
-| Wheels | `/wheel search`, `/wheel type`, `/wheel effects` | `data/wheels.json` |
-| Jobs | `/job search`, `/job random`, `/job sync` | `data/jobs.json` and optional sync provider |
-| Creators | `/creator search`, `/creator playlists` | `data/creators.json` |
-| GTA weather | `/weather current` | Optional weather provider |
-| Garage & legacy | `/cars`, `/garage`, `/compare`, `/daily`, `/profile`, `/stats`, `/crew`, `/jobs` | SQLite & local catalogue |
-| Owner tools | `/hubadmin status`, `/hubadmin sync`, `/hubadmin reload-catalogs`, `/hubadmin sync-catalogs`, `/hubadmin add-vehicle` | Runtime + public catalogue adapters |
+## Table of Contents
 
-Catalog search supports exact matches, partial matches, and typo-tolerant ranking. Matching results are shown in branded embeds with a dropdown selector for details. The help panel also uses a category dropdown and URL buttons when links are configured. Discord clients control the embed background and font, so the bot uses neon-purple accent colors and GTA V HUB copy rather than trying to force a custom typeface or black embed panel.
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [System Architecture](#system-architecture)
+- [Prerequisites](#prerequisites)
+- [Installation & Setup](#installation--setup)
+- [Command Line Interface (CLI)](#command-line-interface-cli)
+- [Configuration Reference](#configuration-reference)
+- [Channel Restriction & Access Control](#channel-restriction--access-control)
+- [Command Reference](#command-reference)
+  - [General Commands](#general-commands)
+  - [Vehicles & Wheels](#vehicles--wheels)
+  - [Jobs & Creators](#jobs--creators)
+  - [Community, Garage & Economy](#community-garage--economy)
+  - [Legacy & Lookups](#legacy--lookups)
+  - [Owner & Administration (`/hubadmin`)](#owner--administration-hubadmin)
+- [Catalog Data & Schema](#catalog-data--schema)
+- [Public Catalogue Sync](#public-catalogue-sync)
+- [Optional Provider Contracts](#optional-provider-contracts)
+- [Development & Testing](#development--testing)
+- [Contributing](#contributing)
+- [Credits & Disclaimers](#credits--disclaimers)
 
-## Requirements
+---
 
-- Python 3.11+
-- A Discord application and bot token
-- The bot invited with the `bot` and `applications.commands` OAuth2 scopes, plus permission to send messages, embed links, and use application commands
+## Overview
 
-The project targets modern `discord.py` (2.4.0+ / 2.7.1+).
+**GTA V HUB** provides Discord communities with tools to search GTA Online vehicles, analyze wheel performance effects, browse community jobs, track personal garages, and claim daily HUB credits.
 
-## Quick start
+All core catalog searches operate against local JSON datasets stored in `data/`, ensuring fast response times without mandatory third-party API dependencies. Server owners can populate datasets manually or import public catalog records via built-in sync tools.
+
+---
+
+## Key Features
+
+- **Typo-Tolerant Catalog Search**: High-performance search powered by `difflib.SequenceMatcher` with exact-match and prefix boosts across vehicles, wheels, jobs, and creators.
+- **Interactive Discord UI**: Embeds styled in a custom neon-purple theme (`#A855F7`) featuring interactive select menus, dynamic category navigation, and external URL buttons.
+- **Persistent Garage & Community System**: Asynchronous SQLite storage (using `aiosqlite` in WAL mode) for personal player garages, linked Rockstar Social Club profiles, and daily reward streaks.
+- **Channel Scoping & Thread Awareness**: Enforce bot interactions to designated channels (`ALLOWED_CHANNEL_ID`) with automatic ephemeral redirects and thread parent detection. Owner administration commands automatically bypass restrictions.
+- **Slash Command Management**: Built-in CLI flags and owner commands to resolve duplicate command registrations and manage global vs. guild command tree propagation.
+- **Atomic Catalog Ingestion**: Download and merge vehicle and wheel data from public endpoints (`gtacars.net` API and GTALens reference dataset) with atomic file operations that preserve local custom additions.
+- **Modular Architecture**: Clean cog-based structure with an optional legacy command suite (`ENABLE_LEGACY_COMMANDS`).
+
+---
+
+## System Architecture
+
+```
+GTA-V-HUB-DBot/
+├── bot.py                     # Entrypoint: GtaHubBot class, CLI options, command error handlers
+├── requirements.txt           # Production dependencies
+├── .env.example               # Environment configuration template
+├── LICENSE                    # MIT License
+├── README.md                  # Project documentation
+├── assets/                    # Repository assets & documentation notes
+├── data/                      # Local JSON catalogs & SQLite storage
+│   ├── creators.json          # Creator profiles and playlist catalog
+│   ├── gtavhub.sqlite3        # SQLite database (garages, profiles, daily rewards)
+│   ├── jobs.json              # Job catalog
+│   ├── vehicles.json          # Vehicle catalog
+│   └── wheels.json            # Wheel catalog
+├── gta_hub/                   # Core application package
+│   ├── branding.py            # Theme constants (0xA855F7), embed factory, text sanitizers
+│   ├── catalog.py             # Atomic CatalogStore, SequenceMatcher ranking, manual record addition
+│   ├── config.py              # Strongly-typed Settings dataclass loaded from .env
+│   ├── database.py            # aiosqlite manager, schema definitions, migrations, queries
+│   ├── views.py               # Discord UI Components (HelpView, CatalogResultsView)
+│   ├── cogs/                  # Application command extensions
+│   │   ├── admin.py           # /hubadmin owner suite (sync, reload, status, catalog sync)
+│   │   ├── common.py          # Shared catalog search presentation logic
+│   │   ├── community.py       # /community group (link, profile, stats)
+│   │   ├── general.py         # /help, /ping, /invite, /support
+│   │   ├── jobs.py            # /job and /creator command groups
+│   │   ├── legacy.py          # /cars, /garage, /compare, /daily, /crew, /jobs, /profile, /stats
+│   │   ├── vehicles.py        # /vehicle command group
+│   │   ├── weather.py         # /weather command group
+│   │   └── wheels.py          # /wheel command group
+│   └── services/              # External service adapters
+│       ├── catalog_sync.py    # Public dataset sync (gtacars.net & GTALens reference)
+│       └── gta.py             # Legacy GTA service, vehicle search/autocomplete, Rockstar API
+└── tests/                     # Automated unit test suite (49 tests)
+    ├── test_catalog.py        # CatalogStore loading, ranking, and atomic persistence
+    ├── test_catalog_sync.py   # Data normalization and source-merging tests
+    ├── test_channel_restriction.py # Channel gating and bypass tests
+    ├── test_command_sync.py   # CLI args and tree sync logic tests
+    ├── test_community.py      # Profile linking and stats tests
+    ├── test_gta_service.py    # Vehicle lookup and autocomplete tests
+    └── test_legacy_cars.py    # /cars command and autocomplete tests
+```
+
+---
+
+## Prerequisites
+
+- **Python**: Version 3.11 or newer (Python 3.12 recommended; 3.14 compatible).
+- **Discord Bot Token**: Obtained from the [Discord Developer Portal](https://discord.com/developers/applications).
+- **OAuth2 Configuration**:
+  - Scopes: `bot`, `applications.commands`
+  - Permissions: Send Messages, Embed Links, Read Message History, Use Application Commands.
+
+---
+
+## Installation & Setup
+
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/Vomkar2024/GTA-V-HUB-DBot.git
 cd GTA-V-HUB-DBot
+```
+
+### 2. Create and Activate a Virtual Environment
+
+**Windows PowerShell:**
+```powershell
 python -m venv .venv
-
-# Windows PowerShell
 .venv\Scripts\Activate.ps1
+```
 
-# macOS / Linux
+**Linux / macOS:**
+```bash
+python3 -m venv .venv
 source .venv/bin/activate
+```
 
+### 3. Install Dependencies
+
+```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Copy `.env.example` to `.env`, set `DISCORD_TOKEN` and your Discord user ID in `OWNER_IDS` (needed for `/hubadmin`), then start the bot:
+### 4. Configure Environment Variables
+
+Copy the example configuration file and update it with your credentials:
+
+**Windows PowerShell:**
+```powershell
+Copy-Item .env.example .env
+```
+
+**Linux / macOS:**
+```bash
+cp .env.example .env
+```
+
+Open `.env` in your text editor and set:
+- `DISCORD_TOKEN`: Your bot token.
+- `OWNER_IDS`: Your numeric Discord user ID (required to access `/hubadmin`).
+- `GUILD_ID`: (Recommended for development) Your test server ID for instant command registration.
+
+### 5. Launch the Bot
 
 ```bash
 python bot.py
 ```
 
-For fast command registration during development, set `GUILD_ID` to your test server ID. When `GUILD_ID` is unset, commands are synced globally; global command propagation can take time.
+---
 
 ## Command Line Interface (CLI)
 
-The bot supports command-line actions for managing slash command registration and resolving server duplicates without starting the gateway:
+`bot.py` provides command-line flags to manage Discord slash command registration and resolve duplicate command issues without starting the gateway connection:
 
 ```bash
-# Clear all global slash commands (resolves duplicate commands in servers)
+# Clear all global slash commands (resolves duplicate command issues in guilds)
 python bot.py --clear-global
 
-# Clear slash commands registered to the GUILD_ID in .env
+# Clear slash commands registered to the GUILD_ID specified in .env
 python bot.py --clear-guild
 
-# Synchronize slash commands without launching the bot gateway
+# Synchronize slash commands to Discord and exit immediately without starting the gateway
 python bot.py --sync-only
+
+# Run the bot daemon normally
+python bot.py
 ```
 
-Or run `/hubadmin sync mode:Clear global commands (fixes duplicates in guild)` directly in Discord.
+---
 
-You can also set `CLEAR_GLOBAL_ON_STARTUP=true` in `.env` to automatically purge global commands whenever syncing to a guild.
+## Configuration Reference
 
-## Configuration
+The following variables can be configured in `.env`:
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `DISCORD_TOKEN` | Yes | Bot token from the Discord Developer Portal |
-| `GUILD_ID` | No | Test guild ID for quick slash-command sync |
-| `CLEAR_GLOBAL_ON_STARTUP` | No | Clear global commands on startup when `GUILD_ID` is set (`true`/`false`) |
-| `ENABLE_LEGACY_COMMANDS` | No | Enable legacy starter commands (`/cars`, `/garage`, `/daily`, etc.) |
-| `OWNER_IDS` | No | Comma-separated Discord user IDs allowed to use `/hubadmin` |
-| `ALLOWED_CHANNEL_ID` | No | Restrict bot commands to specific channel ID(s); leave empty for all channels |
-| `INVITE_URL` | No | Bot OAuth2 invite URL shown by `/invite` |
-| `SUPPORT_URL` | No | Community/support invite or website |
-| `DONATE_URL` | No | Optional donation link |
-| `DATA_DIR` | No | Catalog directory; defaults to `data` |
-| `DATABASE_PATH` | No | SQLite file for garages, profiles, and daily rewards; defaults to `data/gtavhub.sqlite3` |
-| `GTA_HUB_WEATHER_API_URL` | No | Optional JSON endpoint for live GTA weather |
-| `GTA_HUB_SYNC_API_URL` | No | Optional endpoint to resolve a Social Club job URL |
-| `LOG_LEVEL` | No | Python logging level; defaults to `INFO` |
+| Variable | Required | Default | Description |
+|---|:---:|:---:|---|
+| `DISCORD_TOKEN` | **Yes** | — | Bot token from the Discord Developer Portal. |
+| `GUILD_ID` | No | *None* | Target guild ID for instant slash command registration during development. If unset, commands sync globally. |
+| `CLEAR_GLOBAL_ON_STARTUP` | No | `false` | When `true` and `GUILD_ID` is set, purges global commands on startup to eliminate duplicate slash commands. |
+| `ENABLE_LEGACY_COMMANDS` | No | `true` | Enables legacy/starter commands (`/cars`, `/garage`, `/compare`, `/daily`, `/profile`, `/stats`, `/crew`, `/jobs`). |
+| `OWNER_IDS` | No | *None* | Comma-separated list of Discord user IDs authorized to use `/hubadmin` tools. |
+| `ALLOWED_CHANNEL_ID` | No | `1567917854341472387` | Comma- or semicolon-separated channel IDs where standard bot commands are allowed. Leave empty to allow commands in all channels. |
+| `INVITE_URL` | No | *None* | Bot OAuth2 invite URL displayed by `/invite` and the `/help` menu button. |
+| `SUPPORT_URL` | No | *None* | Support server invite URL or website displayed by `/support` and `/help`. |
+| `DONATE_URL` | No | *None* | Optional developer support/donation link displayed by `/support` and `/help`. |
+| `DATA_DIR` | No | `data` | Directory containing JSON catalogs and database storage. |
+| `DATABASE_PATH` | No | `data/gtavhub.sqlite3` | File path for the SQLite database. |
+| `GTA_HUB_WEATHER_API_URL` | No | *None* | Optional HTTPS JSON endpoint for live GTA Online weather data. |
+| `GTA_HUB_SYNC_API_URL` | No | *None* | Optional HTTPS endpoint to resolve Rockstar Social Club job URLs. |
+| `LOG_LEVEL` | No | `INFO` | Python logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). |
 
-Do not commit `.env`, bot tokens, API keys, service-account files, database credentials, or private user data.
+> [!WARNING]
+> Never commit your `.env` file, bot tokens, API keys, or private user databases to public repositories.
 
-## Catalog data
+---
 
-The repository contains empty JSON arrays as safe starting points. Run `/hubadmin sync-catalogs` to import vehicles, wheels, or both; use `/hubadmin add-vehicle` for a manual entry. This downloads public catalogue data on demand; it does not run automatically at startup. Add records only from sources you are allowed to use, and document the source and its terms alongside your data.
+## Channel Restriction & Access Control
 
-Each catalog file is a JSON array:
+The bot includes built-in channel isolation to prevent spam across general server channels:
 
-**`data/vehicles.json`**
+1. **Configuring Channels**: Set `ALLOWED_CHANNEL_ID` in `.env`. You can specify a single channel ID or multiple comma/semicolon-separated IDs:
+   ```env
+   ALLOWED_CHANNEL_ID=123456789012345678,987654321098765432
+   ```
+2. **Disabling Restriction**: Leave `ALLOWED_CHANNEL_ID=` empty to permit command execution across all server channels.
+3. **Thread Inheritance**: Commands issued inside active threads automatically check against the thread's parent channel ID.
+4. **Owner Exemption**: All commands under the `/hubadmin` command group are exempt from channel restrictions and can be executed from private administrative channels.
+5. **User Feedback**: Non-admin commands executed in an unauthorized channel receive an ephemeral response detailing the approved channel mentions.
 
+---
+
+## Command Reference
+
+### General Commands
+
+| Command | Arguments | Description |
+|---|---|---|
+| `/help` | — | Opens the interactive GTA V HUB Command Center with category dropdown and resource buttons. |
+| `/ping` | — | Checks Discord WebSocket gateway latency in milliseconds. |
+| `/invite` | — | Displays the configured bot invite link. |
+| `/support` | — | Displays community support and donation links. |
+
+### Vehicles & Wheels
+
+| Command | Arguments | Description |
+|---|---|---|
+| `/vehicle search` | `query: str` | Search vehicles by name or manufacturer with an interactive details menu. |
+| `/vehicle class` | `name: str` | Browse vehicles within a specific class (e.g., `Sports`, `Super`, `Muscle`). |
+| `/vehicle tier` | `class_name: str`, `tier: str` | Filter vehicles in a class by performance tier (e.g., `Sports`, tier `A`). |
+| `/wheel search` | `query: str` | Search wheels by name with an interactive details menu. |
+| `/wheel type` | `name: str` | List wheels belonging to a specific wheel type (e.g., `Sport`, `SUV`, `Tuner`). |
+| `/wheel effects` | `[wheel_type]`, `[traction_bias]`, `[anti_roll]`, `[slip_angle]` | Filter wheels by handling characteristics and physics modifiers. |
+
+### Jobs & Creators
+
+| Command | Arguments | Description |
+|---|---|---|
+| `/job search` | `query: str` | Search the local job catalog by job title or creator name. |
+| `/job random` | — | Picks and displays a random job from `data/jobs.json`. |
+| `/job sync` | `url: str` | Resolves a Rockstar Social Club job URL via the configured provider (`GTA_HUB_SYNC_API_URL`). |
+| `/creator search` | `query: str` | Search content creators in `data/creators.json`. |
+| `/creator playlists`| `name: str` | Displays published job playlists for a content creator. |
+
+### Community, Garage & Economy
+
+| Command | Arguments | Description |
+|---|---|---|
+| `/community link` | `rockstar_name: str`, `platform: Choice[PC, PlayStation, Xbox]` | Links your Rockstar Social Club name and platform to your Discord account. |
+| `/community profile` | `[member: discord.Member]` | Displays the linked community profile of yourself or another member. |
+| `/community stats` | `[member: discord.Member]` | Displays community activity: total HUB credits, daily claims, streak, and last claim time. |
+| `/garage` | `action: Choice[view, add, remove]`, `[vehicle: str]` | Manages your personal vehicle collection stored in SQLite. |
+| `/compare` | `vehicle_one: str`, `vehicle_two: str` | Performs a side-by-side performance and specification comparison between two vehicles. |
+| `/daily` | — | Claims daily HUB community credits (100–250 credits/day, streak bonus, resets at 00:00 UTC). |
+
+### Legacy & Lookups
+
+Enabled when `ENABLE_LEGACY_COMMANDS=true`:
+
+| Command | Arguments | Description |
+|---|---|---|
+| `/cars name` | `query: str` (with autocomplete) | Search vehicles by name with dynamic autocomplete suggestions. |
+| `/cars manufacturer` | `query: str` (with autocomplete) | Search vehicles by manufacturer with dynamic autocomplete suggestions. |
+| `/cars class` | `query: str` (with autocomplete) | Search vehicles by class with dynamic autocomplete suggestions. |
+| `/profile` | `player: str` | Player profile lookup (indicates requirement for a permitted external provider). |
+| `/stats` | `player: str` | Player statistics lookup (indicates requirement for a permitted external provider). |
+| `/crew` | `crew_id: str` | Queries the Rockstar Social Club crew membership API (best-effort). |
+| `/jobs` | `creator_id: str` | Queries the Rockstar Social Club creator race mission API (best-effort). |
+
+### Owner & Administration (`/hubadmin`)
+
+Restricted to user IDs specified in `OWNER_IDS`. Allowed in any channel:
+
+| Command | Arguments | Description |
+|---|---|---|
+| `/hubadmin status` | — | Displays bot uptime, guild count, gateway latency, catalog counts, and recent sync history. |
+| `/hubadmin reload-catalogs` | — | Hot-reloads all local JSON catalogs from disk without restarting the bot process. |
+| `/hubadmin sync` | `mode: Choice[clear-global, guild, global, clear-guild]` | Manages Discord application command tree registration and resolves duplicate commands. |
+| `/hubadmin sync-catalogs` | `catalogue: Choice[all, vehicles, wheels]` | Imports public datasets from GTACars API and the GTALens wheel reference. |
+| `/hubadmin add-vehicle` | `manufacturer: str`, `name: str`, `vehicle_class: str`, `price: int`, `[drivetrain: str]` | Manually appends a vehicle entry to `data/vehicles.json` atomically. |
+
+---
+
+## Catalog Data & Schema
+
+Catalog data is stored as JSON arrays in `data/`. If a catalog file does not exist at startup, an empty array (`[]`) is generated. All manual additions and automated imports write through temporary files (`tempfile.mkstemp`) and replace existing files atomically (`os.replace`) to prevent file corruption.
+
+### `data/vehicles.json`
 ```json
 [
   {
-    "name": "Example Vehicle",
-    "manufacturer": "Example Manufacturer",
-    "class": "Sports",
-    "tier": "A",
-    "price": "$1,000,000",
-    "top_speed": "Example value",
-    "lap_time": "Example value",
-    "url": "https://example.com/vehicle",
-    "image_url": "https://example.com/vehicle.png"
+    "name": "T20",
+    "manufacturer": "Progen",
+    "class": "Super",
+    "tier": "S",
+    "price": 2200000,
+    "drivetrain": "AWD",
+    "top_speed": 122.25,
+    "lap_time": 61.89,
+    "seats": 2,
+    "url": "https://gtacars.net/gta5/t20",
+    "image_url": "https://example.com/t20.png",
+    "_catalog_source": "gtacars"
   }
 ]
 ```
 
-**`data/wheels.json`**
-
+### `data/wheels.json`
 ```json
 [
   {
-    "name": "Example Wheel",
-    "type": "Sport",
-    "price": "$10,000",
+    "name": "Challenger",
+    "type": "Muscle",
+    "price": "$15,200",
+    "suggested": "Recommended",
     "traction_bias": "rear",
     "anti_roll": "+",
     "slip_angle": "-",
-    "suggested": "Recommended",
-    "url": "https://example.com/wheel"
+    "description": "Increases rear traction bias while stabilizing corner exit.",
+    "_catalog_source": "gtalens-wheel-reference"
   }
 ]
 ```
 
-**`data/jobs.json`**
-
+### `data/jobs.json`
 ```json
 [
   {
-    "name": "Example Stunt Race",
-    "creator": "Example Creator",
+    "name": "Cayo Perico GP",
+    "creator": "TrackMaster",
     "platform": "PC",
-    "url": "https://example.com/job",
-    "description": "Replace this sample with licensed data."
+    "url": "https://socialclub.rockstargames.com/job/gtav/example",
+    "description": "High-speed stunt race around the island."
   }
 ]
 ```
 
-**`data/creators.json`**
-
+### `data/creators.json`
 ```json
 [
   {
-    "name": "Example Creator",
+    "name": "TrackMaster",
     "platform": "PC",
-    "url": "https://example.com/creator",
+    "url": "https://socialclub.rockstargames.com/member/TrackMaster",
     "playlists": [
-      {"name": "Example Playlist", "url": "https://example.com/playlist"}
+      {
+        "name": "Stunt Series 2026",
+        "url": "https://socialclub.rockstargames.com/games/gtav/pc/playlists/playlist/example"
+      }
     ]
   }
 ]
 ```
 
-Unknown fields are retained and displayed when possible. Missing optional fields are simply omitted.
+---
 
-## Public catalogue sync
+## Public Catalogue Sync
 
-`/hubadmin sync-catalogs` can import:
-- Vehicles from the public GTACars API endpoint pattern used by the GTALens reference adapter.
-- Wheels from the public GTALens `wheels.json` reference file.
+The `/hubadmin sync-catalogs` command provides manual ingestion from public endpoints:
 
-Sync is manual, uses a descriptive User-Agent and a 0.75-second pause between vehicle pages, and does not use proxy rotation, Tor, credential harvesting, or rate-limit bypasses. Imported records are tagged internally; later syncs replace only records previously imported from the same provider and preserve local/manual entries. The `vehicles.json` and `wheels.json` files are updated atomically.
+- **Vehicles**: Fetched from the public GTACars paginated API (`gtacars.net`). Ingestion runs with a 0.75-second rate-limiting delay between pages.
+- **Wheels**: Downloaded from the public GTALens reference repository (`wheels.json`).
 
-**Data rights note:** public availability does not automatically grant redistribution rights. Review GTACars and GTALens source terms and obtain any required permission before redistributing imported data or running a public hosted service. The GTALens repository's licensing status should be verified independently. The bot is not affiliated with either provider or Rockstar Games.
+### Provenance & Deduplication
+- Records imported from public providers are tagged with `_catalog_source`.
+- Re-running the sync replaces only records previously imported from that specific provider, preserving any custom or manual records created with `/hubadmin add-vehicle` or labeled with `_catalog_source="manual"`.
+- Sync runs with a descriptive `User-Agent` header and does not employ proxy rotation, credential harvesting, or scraping bypasses.
 
-## Optional live providers
+---
 
-### Weather
+## Optional Provider Contracts
 
-Set `GTA_HUB_WEATHER_API_URL` to an HTTPS endpoint returning JSON such as:
+Live weather and job resolution require optional self-hosted or permitted third-party HTTPS endpoints.
+
+### Weather Provider (`GTA_HUB_WEATHER_API_URL`)
+
+The endpoint must return an HTTP 200 JSON response matching this schema:
 
 ```json
 {
   "weather": "Clear",
-  "game_time": "12:30",
-  "next_change": "in 18 minutes",
-  "details": "Los Santos"
+  "details": "Sunny across Los Santos and Blaine County",
+  "game_time": "14:20",
+  "next_change": "in 12 minutes"
 }
 ```
 
-### Job sync
+### Job Sync Provider (`GTA_HUB_SYNC_API_URL`)
 
-Set `GTA_HUB_SYNC_API_URL` to an HTTPS endpoint. The bot sends a GET request with a `url` query parameter containing the supplied Social Club job URL. The provider should return JSON such as:
+The bot sends an HTTP GET request with a `url` query parameter containing the Rockstar Social Club job URL (`?url=https://socialclub.rockstargames.com/job/...`). The provider must return an HTTP 200 JSON response matching this schema:
 
 ```json
 {
-  "name": "Example Stunt Race",
-  "creator": "Example Creator",
+  "name": "Stunt - Canyon Drop",
+  "creator": "SpeedDemon",
   "platform": "PC",
-  "url": "https://example.com/job",
-  "description": "Optional description"
+  "url": "https://socialclub.rockstargames.com/job/gtav/example",
+  "description": "Precision stunt race descending Mount Chiliad."
 }
 ```
 
-The endpoint contract is configurable and is not an official Rockstar API. This project does not scrape Rockstar services, bypass rate limits, or ship provider credentials.
+> [!NOTE]
+> The bot validates that the supplied URL belongs to the `rockstargames.com` domain before dispatching the request.
+
+---
 
 ## Development & Testing
 
-Run tests and syntax checks:
+### Running Tests
 
+The test suite contains 49 automated unit tests verifying catalog operations, sync adapters, channel restrictions, command tree synchronization, and autocomplete handlers.
+
+Run using Python's built-in `unittest`:
 ```bash
-# Run unit tests
 python -m unittest discover -s tests -v
+```
 
-# Or run with pytest
+Or run using `pytest`:
+```bash
 python -m pytest
+```
 
-# Run syntax/compilation check
+### Bytecode Compilation & Syntax Check
+
+Verify that all modules compile cleanly:
+```bash
 python -m compileall -q bot.py gta_hub tests
 ```
 
-The GitHub Actions workflow runs the same checks on pushes and pull requests.
+### Continuous Integration (CI)
 
-## Upstream feature reference and licensing
+A GitHub Actions workflow is located at `.github/workflows/ci.yml`. It runs automatically on every push and pull request against Python 3.12, executing dependency installation, the unit test suite, and syntax verification.
 
-The feature areas were informed by functionality described in the public [nosv1/GTALens](https://github.com/nosv1/GTALens) project. The inspected `dev` branch did not include a license file. This repository is an independent implementation: it does **not** redistribute GTALens source code, bundled datasets, or artwork. Obtain permission or a suitable license from the relevant rights holders before porting those materials. Required notices and attributions must be retained for any third-party material added later.
+---
 
-The original GTALens project remains credited as a feature reference; no affiliation or endorsement is implied.
+## Contributing
 
-## Disclaimer
+Contributions to GTA V HUB are welcome. Please follow these steps:
 
-GTA V and related marks belong to their respective owners. GTA V HUB is an independent community project and is not affiliated with, endorsed by, or sponsored by Rockstar Games.
+1. **Fork the Repository** to your GitHub account.
+2. **Create a Feature Branch**:
+   ```bash
+   git checkout -b feature/my-new-feature
+   ```
+3. **Commit Your Changes**: Follow clear and concise commit conventions.
+4. **Run the Test Suite**: Ensure all 49 tests pass and add new tests for your feature:
+   ```bash
+   python -m unittest discover -s tests -v
+   python -m compileall -q bot.py gta_hub tests
+   ```
+5. **Open a Pull Request**: Provide a detailed description of your changes and reference any related issues.
 
-## Merged project notes
+---
 
-This consolidated project uses the modular `gta_hub/` bot as its runtime foundation and integrates the vehicle/wheel catalogue sync into that architecture. The SQLite garage and daily-reward persistence, vehicle comparison, community profile linking, HUB reward statistics, and legacy crew/creator-job lookups are integrated into the modular bot. The duplicate `/help` command was unified into the modular help menu. The profile-linking and community-stat features are housed under the non-conflicting `/community` command group; the catalogue add/status/sync tools and Discord command synchronization tools are consolidated under `/hubadmin`. The modular SQLite garage/profile/reward database remains the single persistence layer, while searchable catalogues remain JSON files. `/cars` and `/vehicle ...` are both available and read the same `data/vehicles.json` catalogue. The `/jobs` creator-ID lookup and `/job ...` local-catalog commands are distinct.
+## Credits & Disclaimers
 
-The Rockstar crew/job endpoints are undocumented and best-effort. Player profile/stat commands do not claim to retrieve private account data; a permitted public provider is required for real profiles. Daily rewards are community HUB credits, not in-game GTA$.
+### Upstream References
+- Architectural inspiration and catalog taxonomy were informed by the public [nosv1/GTALens](https://github.com/nosv1/GTALens) repository.
+- This repository is an independent, clean-room implementation. It does **not** redistribute original source code, proprietary datasets, or third-party graphic assets from the GTALens project.
+
+### Legal Disclaimer
+- **Grand Theft Auto V**, **GTA Online**, **Rockstar Games**, and associated logos and marks are trademarks or registered trademarks of Take-Two Interactive Software, Inc. and Rockstar Games.
+- **GTA V HUB** is an independent, unofficial open-source community companion and is not affiliated with, endorsed by, or sponsored by Rockstar Games or Take-Two Interactive.
+- In-game rewards, profiles, and currency tracked in the bot are Discord-specific community points and bear no affiliation with in-game GTA$.
+
+### License
+This project is open-source software licensed under the [MIT License](LICENSE).

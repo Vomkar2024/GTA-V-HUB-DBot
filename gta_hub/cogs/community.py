@@ -53,7 +53,7 @@ class Community(commands.Cog):
             embed.set_thumbnail(url=avatar_url)
         embed.add_field(name="Rockstar nickname", value=profile[0], inline=True)
         embed.add_field(name="Platform", value=profile[1], inline=True)
-        embed.set_footer(text="A community link only; it does not access Rockstar account data.")
+        embed.set_footer(text="GTA V HUB • Los Santos Network")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @community.command(name="stats", description="View community reward statistics")

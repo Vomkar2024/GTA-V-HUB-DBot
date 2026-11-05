@@ -249,9 +249,7 @@ class GTAService:
         return {
             "query": player,
             "message": (
-                "Rockstar does not provide a documented public endpoint for arbitrary "
-                "GTA Online player profiles. This command will show real profile data "
-                "only after a supported, permitted data provider is configured."
+                "Player profile lookups require an authorized profile provider to be configured."
             ),
         }
 
@@ -262,7 +260,7 @@ class GTAService:
     def profile_embed(data: dict[str, str]) -> discord.Embed:
         embed = discord.Embed(title=f"Player profile: {data['query']}", color=0xE85D24)
         embed.description = data["message"]
-        embed.set_footer(text="No Rockstar credentials or private account data are collected.")
+        embed.set_footer(text="GTA V HUB • Los Santos Network")
         return embed
 
     @staticmethod
@@ -288,12 +286,12 @@ class GTAService:
     def crew_embed(data: dict[str, Any]) -> discord.Embed:
         embed = discord.Embed(title=f"Crew lookup: {data['query']}", color=0xE85D24)
         if data.get("error"):
-            embed.description = f"Rockstar service error: {data['error'][:250]}"
+            embed.description = f"Service error: {data['error'][:250]}"
             return embed
         payload = data.get("payload", {})
         ranks = payload.get("crewRanks", []) if isinstance(payload, dict) else []
         embed.description = f"Crew response received. Rank groups returned: **{len(ranks)}**."
-        embed.set_footer(text="Legacy Rockstar endpoint; details may vary or become unavailable.")
+        embed.set_footer(text="GTA V HUB • Los Santos Network")
         return embed
 
     async def jobs_by_creator(self, creator_id: str) -> dict[str, Any]:

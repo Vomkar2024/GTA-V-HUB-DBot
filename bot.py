@@ -61,7 +61,9 @@ class GtaHubBot(commands.Bot):
         self.catalog = CatalogStore(settings.data_dir)
         self.db = Database(str(settings.database_path))
         self.gta = GTAService(settings.data_dir / "vehicles.json")
-        self.catalog_sync = CatalogSyncService(settings.data_dir)
+        self.catalog_sync = CatalogSyncService(
+            settings.data_dir, base_url=settings.catalogue_api_base_url
+        )
 
     def is_channel_allowed(self, channel_id: int | None, parent_id: int | None = None) -> bool:
         if not self.settings.allowed_channel_ids:
