@@ -12,6 +12,7 @@ class Settings:
     token: str
     guild_id: int | None
     owner_ids: frozenset[int]
+    allowed_channel_ids: frozenset[int]
     invite_url: str | None
     support_url: str | None
     donate_url: str | None
@@ -21,6 +22,10 @@ class Settings:
     sync_api_url: str | None
     log_level: str
 
+    @property
+    def allowed_channel_id(self) -> int | None:
+        return next(iter(self.allowed_channel_ids), None)
+
     @classmethod
     def from_env(cls) -> "Settings":
         load_dotenv()
@@ -28,6 +33,12 @@ class Settings:
         owner_ids = frozenset(
             int(value.strip())
             for value in os.getenv("OWNER_IDS", "").split(",")
+            if value.strip().isdigit()
+        )
+        raw_allowed_channels = os.getenv("ALLOWED_CHANNEL_ID", "1567917854341472387").strip()
+        allowed_channel_ids = frozenset(
+            int(value.strip())
+            for value in raw_allowed_channels.replace(";", ",").split(",")
             if value.strip().isdigit()
         )
         data_dir = Path(os.getenv("DATA_DIR", "data")).expanduser()
@@ -40,6 +51,7 @@ class Settings:
             token=os.getenv("DISCORD_TOKEN", "").strip(),
             guild_id=int(raw_guild_id) if raw_guild_id.isdigit() else None,
             owner_ids=owner_ids,
+            allowed_channel_ids=allowed_channel_ids,
             invite_url=_optional_url("INVITE_URL"),
             support_url=_optional_url("SUPPORT_URL"),
             donate_url=_optional_url("DONATE_URL"),
