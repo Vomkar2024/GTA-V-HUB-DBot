@@ -144,6 +144,14 @@ class CatalogueApiController:
     def __init__(self, data_dir: Path, base_url: str = ""):
         self.data_dir = Path(data_dir)
         self.base_url = base_url.rstrip("/")
+        self._vehicles_cache: tuple[float, list[dict[str, Any]], list[dict[str, Any]]] | None = None
+        self._wheels_cache: tuple[float, Any, dict[str, Any]] | None = None
+
+    def _get_mtime(self, filename: str) -> float:
+        try:
+            return (self.data_dir / filename).stat().st_mtime
+        except OSError:
+            return -1.0
 
     def _read_json(self, filename: str) -> Any:
         path = self.data_dir / filename
@@ -156,15 +164,43 @@ class CatalogueApiController:
             return []
 
     def get_raw_vehicles(self) -> list[dict[str, Any]]:
+        mtime = self._get_mtime("vehicles.json")
+        if self._vehicles_cache is not None and self._vehicles_cache[0] == mtime:
+            return self._vehicles_cache[1]
+
         raw = self._read_json("vehicles.json")
         if isinstance(raw, list):
-            return [row for row in raw if isinstance(row, dict)]
-        if isinstance(raw, dict):
-            return [row for row in raw.values() if isinstance(row, dict)]
-        return []
+            raw_list = [row for row in raw if isinstance(row, dict)]
+        elif isinstance(raw, dict):
+            raw_list = [row for row in raw.values() if isinstance(row, dict)]
+        else:
+            raw_list = []
+
+        formatted = [
+            item for raw_item in raw_list
+            if (item := format_vehicle_for_api(raw_item, self.base_url)) is not None
+            and item.get("name")
+        ]
+        self._vehicles_cache = (mtime, raw_list, formatted)
+        return raw_list
+
+    def get_formatted_vehicles(self) -> list[dict[str, Any]]:
+        self.get_raw_vehicles()
+        return self._vehicles_cache[2] if self._vehicles_cache else []
 
     def get_raw_wheels(self) -> Any:
-        return self._read_json("wheels.json")
+        mtime = self._get_mtime("wheels.json")
+        if self._wheels_cache is not None and self._wheels_cache[0] == mtime:
+            return self._wheels_cache[1]
+
+        raw = self._read_json("wheels.json")
+        formatted = format_wheels_for_api(raw)
+        self._wheels_cache = (mtime, raw, formatted)
+        return raw
+
+    def get_formatted_wheels(self) -> dict[str, Any]:
+        self.get_raw_wheels()
+        return self._wheels_cache[2] if self._wheels_cache else {}
 
     async def handle_status(self, request: web.Request) -> web.Response:
         vehicles = self.get_raw_vehicles()
@@ -197,12 +233,7 @@ class CatalogueApiController:
         class_filter = request.query.get("class", "").strip().casefold()
         manuf_filter = request.query.get("manufacturer", "").strip().casefold()
 
-        raw_list = self.get_raw_vehicles()
-        formatted = [
-            item for raw in raw_list
-            if (item := format_vehicle_for_api(raw, self.base_url)) is not None
-            and item.get("name")
-        ]
+        formatted = list(self.get_formatted_vehicles())
 
         filtered = formatted
         if query:
@@ -253,16 +284,13 @@ class CatalogueApiController:
 
     async def handle_vehicle_detail(self, request: web.Request) -> web.Response:
         slug = request.match_info.get("id", "").strip().casefold()
-        raw_list = self.get_raw_vehicles()
-        for raw in raw_list:
-            v = format_vehicle_for_api(raw, self.base_url)
+        for v in self.get_formatted_vehicles():
             if v["id"].casefold() == slug or v["name"].casefold() == slug:
                 return web.json_response({"status": True, "payload": v})
         return web.json_response({"status": False, "error": "Vehicle not found"}, status=404)
 
     async def handle_wheels(self, request: web.Request) -> web.Response:
-        raw_wheels = self.get_raw_wheels()
-        formatted = format_wheels_for_api(raw_wheels)
+        formatted = self.get_formatted_wheels()
         if request.query.get("format") == "list":
             return web.json_response(list(formatted.values()))
         return web.json_response(formatted)

@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-import os
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 if "aiosqlite" not in sys.modules:
     sys.modules["aiosqlite"] = MagicMock()
 
-import discord
 from bot import GtaHubBot
 from gta_hub.cogs.admin import AdminSecret, HubAdmin
 from gta_hub.config import Settings

@@ -74,7 +74,10 @@ class CatalogStore:
             elif needle in haystack:
                 score = 2.0 + len(needle) / max(len(haystack), 1)
             else:
-                score = SequenceMatcher(None, needle, haystack).ratio()
+                matcher = SequenceMatcher(None, needle, haystack)
+                if matcher.real_quick_ratio() < 0.34 or matcher.quick_ratio() < 0.34:
+                    continue
+                score = matcher.ratio()
             if score >= 0.34:
                 scored.append((score, index, row))
 

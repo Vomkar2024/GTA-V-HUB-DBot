@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from unittest.mock import AsyncMock, MagicMock
 
-import discord
 from discord import app_commands
 
 from gta_hub.cogs.community import Community

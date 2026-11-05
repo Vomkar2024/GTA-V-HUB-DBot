@@ -12,11 +12,50 @@ import discord
 class GTAService:
     def __init__(self, data_file: Path) -> None:
         self.data_file = Path(data_file)
-        self.vehicles: list[dict[str, Any]] = self._load_vehicles()
+        self.vehicles: list[dict[str, Any]] = []
+        self._names: list[str] = []
+        self._manufacturers: list[str] = []
+        self._classes: list[str] = []
+        self._name_map: dict[str, dict[str, Any]] = {}
+        self.reload_vehicles()
 
     def reload_vehicles(self) -> int:
         self.vehicles = self._load_vehicles()
+        self._refresh_indexes()
         return len(self.vehicles)
+
+    def _refresh_indexes(self) -> None:
+        name_seen: set[str] = set()
+        mfg_seen: set[str] = set()
+        cls_seen: set[str] = set()
+        self._names = []
+        self._manufacturers = []
+        self._classes = []
+        self._name_map = {}
+
+        for vehicle in self.vehicles:
+            name = str(vehicle.get("name", "")).strip()
+            if name:
+                cf = name.casefold()
+                if cf not in name_seen:
+                    name_seen.add(cf)
+                    self._names.append(name)
+                if cf not in self._name_map:
+                    self._name_map[cf] = vehicle
+
+            make = str(vehicle.get("manufacturer", "")).strip()
+            if make:
+                cf_make = make.casefold()
+                if cf_make not in mfg_seen:
+                    mfg_seen.add(cf_make)
+                    self._manufacturers.append(make)
+
+            cls = str(vehicle.get("vehicle_class", vehicle.get("class", ""))).strip()
+            if cls:
+                cf_cls = cls.casefold()
+                if cf_cls not in cls_seen:
+                    cls_seen.add(cf_cls)
+                    self._classes.append(cls)
 
     def _load_vehicles(self) -> list[dict[str, Any]]:
         if not self.data_file.exists():
@@ -94,81 +133,42 @@ class GTAService:
         return [item[2] for item in ranked[:limit]]
 
     def autocomplete_vehicle_names(self, query: str, limit: int = 25) -> list[str]:
-        query = query.casefold().strip()
-        seen: set[str] = set()
-        results: list[str] = []
-        for vehicle in self.vehicles:
-            name = str(vehicle.get("name", "")).strip()
-            if not name or name.casefold() in seen:
-                continue
-            if not query or name.casefold().startswith(query):
-                seen.add(name.casefold())
-                results.append(name)
-                if len(results) >= limit:
-                    return results
-        if query:
-            for vehicle in self.vehicles:
-                name = str(vehicle.get("name", "")).strip()
-                if not name or name.casefold() in seen:
-                    continue
-                if query in name.casefold():
-                    seen.add(name.casefold())
-                    results.append(name)
-                    if len(results) >= limit:
-                        return results
-        return results
+        clean = query.casefold().strip()
+        if not clean:
+            return self._names[:limit]
+        prefix_matches = [n for n in self._names if n.casefold().startswith(clean)]
+        if len(prefix_matches) >= limit:
+            return prefix_matches[:limit]
+        seen = {n.casefold() for n in prefix_matches}
+        substr_matches = [n for n in self._names if clean in n.casefold() and n.casefold() not in seen]
+        return (prefix_matches + substr_matches)[:limit]
 
     def autocomplete_manufacturers(self, query: str, limit: int = 25) -> list[str]:
-        query = query.casefold().strip()
-        seen: set[str] = set()
-        results: list[str] = []
-        for vehicle in self.vehicles:
-            make = str(vehicle.get("manufacturer", "")).strip()
-            if not make or make.casefold() in seen:
-                continue
-            if not query or make.casefold().startswith(query):
-                seen.add(make.casefold())
-                results.append(make)
-                if len(results) >= limit:
-                    return results
-        if query:
-            for vehicle in self.vehicles:
-                make = str(vehicle.get("manufacturer", "")).strip()
-                if not make or make.casefold() in seen:
-                    continue
-                if query in make.casefold():
-                    seen.add(make.casefold())
-                    results.append(make)
-                    if len(results) >= limit:
-                        return results
-        return results
+        clean = query.casefold().strip()
+        if not clean:
+            return self._manufacturers[:limit]
+        prefix_matches = [m for m in self._manufacturers if m.casefold().startswith(clean)]
+        if len(prefix_matches) >= limit:
+            return prefix_matches[:limit]
+        seen = {m.casefold() for m in prefix_matches}
+        substr_matches = [m for m in self._manufacturers if clean in m.casefold() and m.casefold() not in seen]
+        return (prefix_matches + substr_matches)[:limit]
 
     def autocomplete_classes(self, query: str, limit: int = 25) -> list[str]:
-        query = query.casefold().strip()
-        seen: set[str] = set()
-        results: list[str] = []
-        for vehicle in self.vehicles:
-            cls = str(vehicle.get("vehicle_class", vehicle.get("class", ""))).strip()
-            if not cls or cls.casefold() in seen:
-                continue
-            if not query or cls.casefold().startswith(query):
-                seen.add(cls.casefold())
-                results.append(cls)
-                if len(results) >= limit:
-                    return results
-        if query:
-            for vehicle in self.vehicles:
-                cls = str(vehicle.get("vehicle_class", vehicle.get("class", ""))).strip()
-                if not cls or cls.casefold() in seen:
-                    continue
-                if query in cls.casefold():
-                    seen.add(cls.casefold())
-                    results.append(cls)
-                    if len(results) >= limit:
-                        return results
-        return results
+        clean = query.casefold().strip()
+        if not clean:
+            return self._classes[:limit]
+        prefix_matches = [c for c in self._classes if c.casefold().startswith(clean)]
+        if len(prefix_matches) >= limit:
+            return prefix_matches[:limit]
+        seen = {c.casefold() for c in prefix_matches}
+        substr_matches = [c for c in self._classes if clean in c.casefold() and c.casefold() not in seen]
+        return (prefix_matches + substr_matches)[:limit]
 
     def find_vehicle(self, query: str) -> dict[str, Any] | None:
+        clean = query.casefold().strip()
+        if clean in self._name_map:
+            return self._name_map[clean]
         matches = self.search_vehicles(query, limit=1)
         return matches[0] if matches else None
 

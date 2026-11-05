@@ -4,7 +4,6 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock
 
 import discord
-from discord import app_commands
 
 from gta_hub.cogs.legacy import LegacyCommands
 
@@ -51,6 +50,8 @@ class LegacyCarsCommandTests(unittest.TestCase):
         interaction.response.defer.assert_called_once_with(ephemeral=True)
         self.bot.gta.search_vehicles_by_name.assert_called_once_with("Krieger")
         interaction.followup.send.assert_called_once()
+        for f in interaction.followup.send.call_args.kwargs.get("files", []):
+            f.close()
 
     def test_cars_manufacturer_defers_and_searches(self) -> None:
         interaction = MagicMock()
@@ -67,6 +68,8 @@ class LegacyCarsCommandTests(unittest.TestCase):
         interaction.response.defer.assert_called_once_with(ephemeral=True)
         self.bot.gta.search_vehicles_by_manufacturer.assert_called_once_with("Benefactor")
         interaction.followup.send.assert_called_once()
+        for f in interaction.followup.send.call_args.kwargs.get("files", []):
+            f.close()
 
     def test_cars_class_defers_and_searches(self) -> None:
         interaction = MagicMock()
@@ -83,6 +86,8 @@ class LegacyCarsCommandTests(unittest.TestCase):
         interaction.response.defer.assert_called_once_with(ephemeral=True)
         self.bot.gta.search_vehicles_by_class.assert_called_once_with("Super")
         interaction.followup.send.assert_called_once()
+        for f in interaction.followup.send.call_args.kwargs.get("files", []):
+            f.close()
 
     def test_autocomplete_handlers(self) -> None:
         interaction = MagicMock()

@@ -4,7 +4,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from gta_hub.branding import make_embed
 from gta_hub.cogs.common import show_catalog_results
 
 

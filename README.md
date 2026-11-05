@@ -49,10 +49,11 @@ All bot catalog searches query local, atomic JSON datasets stored in `data/`, gu
 
 ## Key Features
 
-- **Typo-Tolerant Catalog Search**: Fast search powered by `difflib.SequenceMatcher` with exact-match and prefix boosts across vehicles, wheels, jobs, and creators.
-- **Interactive Discord UI**: Embeds styled in a custom neon-purple theme (`#A855F7`) featuring interactive select menus, dynamic category navigation, and external URL buttons.
+- **Typo-Tolerant Catalog Search**: Fast search powered by `difflib.SequenceMatcher` with quick-ratio upper-bound pruning, exact-match fast path, and prefix boosts across vehicles, wheels, jobs, and creators.
+- **Interactive Discord UI**: Embeds styled in a custom neon-purple theme (`#A855F7`) featuring interactive select menus, dynamic category navigation, direct single-match embeds, and external URL buttons.
 - **Persistent Garage & Community System**: Asynchronous SQLite storage (using `aiosqlite` in WAL mode) for personal player garages, linked Rockstar Social Club profiles, and daily reward streaks.
-- **First-Party Catalogue API Server**: A standalone `aiohttp.web` REST server (`server.py`) serving vehicle endpoints (with pagination, sorting, and filtering), wheel specifications, and health metrics.
+- **First-Party Catalogue API Server**: A standalone `aiohttp.web` REST server (`server.py`) serving vehicle endpoints (with in-memory `mtime`-based caching, pagination, sorting, and filtering), wheel specifications, and health metrics.
+- **Optimized Asset Pipeline**: Fast in-memory asset image index resolving vehicle artwork instantaneously without redundant disk `stat` system calls.
 - **Channel Scoping & Thread Awareness**: Enforce bot interactions to designated channels (`ALLOWED_CHANNEL_ID`) with automatic ephemeral redirects and thread parent detection. Owner commands automatically bypass restrictions.
 - **Slash Command Management**: Built-in CLI flags and owner commands to resolve duplicate command registrations and manage global vs. guild command tree propagation.
 - **Atomic Catalog Ingestion**: Download and merge vehicle and wheel data from the configured catalogue API with atomic file operations that preserve local custom additions.
@@ -100,8 +101,10 @@ GTA-V-HUB-DBot/
 │       ├── catalog_sync.py    # First-party catalogue sync service via CATALOGUE_API_BASE_URL
 │       └── gta.py             # Legacy GTA service, vehicle search/autocomplete, Rockstar API
 ├── scripts/                   # Operational utilities
-│   └── seed_catalogue.py      # Sanitizes & standardizes local JSON catalogs under first-party schema
-└── tests/                     # Automated unit test suite (62 tests)
+│   ├── seed_catalogue.py      # Sanitizes & standardizes local JSON catalogs under first-party schema
+│   └── upgrade_images_4k.py   # High-resolution image processor utility
+└── tests/                     # Automated unit test suite (93 tests)
+    ├── test_admin_panel.py    # Admin control panel and secret trigger tests
     ├── test_api_server.py     # Endpoints, pagination, sorting, and formatting tests
     ├── test_catalog.py        # CatalogStore loading, ranking, and atomic persistence
     ├── test_catalog_sync.py   # Data normalization and source-merging tests
@@ -109,7 +112,8 @@ GTA-V-HUB-DBot/
     ├── test_command_sync.py   # CLI args and tree sync logic tests
     ├── test_community.py      # Profile linking and stats tests
     ├── test_gta_service.py    # Vehicle lookup and autocomplete tests
-    └── test_legacy_cars.py    # /cars command and autocomplete tests
+    ├── test_legacy_cars.py    # /cars command and autocomplete tests
+    └── test_vehicle_images.py # Image resolution, asset matching, and attachment tests
 ```
 
 ---
@@ -484,7 +488,7 @@ The bot sends an HTTP GET request with a `url` query parameter containing the Ro
 
 ### Running Tests
 
-The test suite contains 72 automated unit tests verifying API endpoints, catalog operations, sync adapters, channel restrictions, command tree synchronization, and autocomplete handlers.
+The test suite contains 93 automated unit tests verifying API endpoints, catalog operations, sync adapters, channel restrictions, command tree synchronization, autocomplete handlers, owner admin panels, and vehicle asset resolution.
 
 Run using Python's built-in `unittest`:
 ```bash
@@ -519,7 +523,7 @@ Contributions to GTA V HUB are welcome. Please follow these steps:
    git checkout -b feature/my-new-feature
    ```
 3. **Commit Your Changes**: Follow clear and concise commit conventions.
-4. **Run the Test Suite**: Ensure all 72 tests pass and add new tests for your feature:
+4. **Run the Test Suite**: Ensure all 93 tests pass and add new tests for your feature:
    ```bash
    python -m unittest discover -s tests -v
    python -m compileall -q bot.py server.py gta_hub scripts tests

@@ -204,6 +204,34 @@ ROMAN_NUMERALS: dict[str, str] = {
     "i": "1",
 }
 
+_IMAGE_INDEX_CACHE: dict[Path, dict[str, Path]] = {}
+
+
+def clear_image_cache() -> None:
+    """Clear the cached asset image index."""
+    _IMAGE_INDEX_CACHE.clear()
+
+
+def _get_image_index(base_dir: Path) -> dict[str, Path]:
+    try:
+        resolved = base_dir.resolve()
+    except OSError:
+        resolved = base_dir
+    cached = _IMAGE_INDEX_CACHE.get(resolved)
+    if cached is not None:
+        return cached
+    if not resolved.is_dir():
+        return {}
+    index: dict[str, Path] = {}
+    try:
+        for entry in resolved.iterdir():
+            if entry.is_file() and entry.suffix.lower() == ".png":
+                index[entry.name.lower()] = entry
+    except OSError:
+        pass
+    _IMAGE_INDEX_CACHE[resolved] = index
+    return index
+
 
 def resolve_vehicle_image(row: dict[str, Any], assets_dir: Path | str | None = None) -> Path | None:
     """Find a matching vehicle image file from the assets/images directory."""
@@ -219,12 +247,14 @@ def resolve_vehicle_image(row: dict[str, Any], assets_dir: Path | str | None = N
         if not base_dir.is_dir():
             return None
 
+    img_index = _get_image_index(base_dir)
+
     # Check direct image_url if provided
     direct_img = str(row.get("image_url") or "").strip()
     if direct_img:
-        cand_name = Path(direct_img).name
-        if cand_name and (base_dir / cand_name).is_file():
-            return base_dir / cand_name
+        cand_name = Path(direct_img).name.lower()
+        if cand_name in img_index:
+            return img_index[cand_name]
 
     name = str(row.get("name") or "").strip().lower()
     model = str(row.get("model") or "").strip().lower()
@@ -283,9 +313,9 @@ def resolve_vehicle_image(row: dict[str, Any], assets_dir: Path | str | None = N
     for cand in candidates:
         if not cand or cand == ".png":
             continue
-        path = base_dir / cand
-        if path.is_file():
-            return path
+        matched = img_index.get(cand.lower())
+        if matched is not None:
+            return matched
 
     return None
 

@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from gta_hub.branding import make_embed
-from gta_hub.services.gta import GTAService
 from gta_hub.views import CatalogResultsView, resolve_vehicle_image
 
 

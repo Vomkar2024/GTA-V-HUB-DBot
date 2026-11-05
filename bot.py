@@ -85,20 +85,27 @@ class GtaHubBot(commands.Bot):
         cmd_name = getattr(cmd, "name", "")
         return (root_name or parent_name or cmd_name) in ("hubadmin", "admin", "hub9575")
 
+    def _channel_restricted_embed(self) -> discord.Embed:
+        channels_mention = ", ".join(f"<#{cid}>" for cid in sorted(self.settings.allowed_channel_ids))
+        return make_embed(
+            "Channel Restricted",
+            f"GTA V HUB commands can only be used in {channels_mention}."
+        )
+
+    def reload_catalogs(self) -> None:
+        self.catalog.load_all()
+        if hasattr(self, "gta") and hasattr(self.gta, "reload_vehicles"):
+            self.gta.reload_vehicles()
+
     async def check_interaction_allowed(self, interaction: discord.Interaction) -> bool:
         if self._is_owner_admin_command(interaction):
             return True
 
         parent_id = getattr(interaction.channel, "parent_id", None)
         if not self.is_channel_allowed(interaction.channel_id, parent_id):
-            channels_mention = ", ".join(f"<#{cid}>" for cid in sorted(self.settings.allowed_channel_ids))
-            embed = make_embed(
-                "Channel Restricted",
-                f"GTA V HUB commands can only be used in {channels_mention}."
-            )
             if hasattr(interaction, "response") and hasattr(interaction.response, "is_done"):
                 if not interaction.response.is_done():
-                    await interaction.response.send_message(embed=embed, ephemeral=True)
+                    await interaction.response.send_message(embed=self._channel_restricted_embed(), ephemeral=True)
             return False
         return True
 
@@ -112,23 +119,11 @@ class GtaHubBot(commands.Bot):
             if app_commands is not None:
                 @self.tree.error
                 async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
-                    if isinstance(error, ChannelRestrictedError):
-                        if not interaction.response.is_done():
-                            channels_mention = ", ".join(f"<#{cid}>" for cid in sorted(self.settings.allowed_channel_ids))
-                            embed = make_embed(
-                                "Channel Restricted",
-                                f"GTA V HUB commands can only be used in {channels_mention}."
+                    if isinstance(error, (ChannelRestrictedError, app_commands.CheckFailure)):
+                        if hasattr(interaction, "response") and not interaction.response.is_done():
+                            await interaction.response.send_message(
+                                embed=self._channel_restricted_embed(), ephemeral=True
                             )
-                            await interaction.response.send_message(embed=embed, ephemeral=True)
-                        return
-                    if isinstance(error, app_commands.CheckFailure):
-                        if not interaction.response.is_done():
-                            channels_mention = ", ".join(f"<#{cid}>" for cid in sorted(self.settings.allowed_channel_ids))
-                            embed = make_embed(
-                                "Channel Restricted",
-                                f"GTA V HUB commands can only be used in {channels_mention}."
-                            )
-                            await interaction.response.send_message(embed=embed, ephemeral=True)
                         return
                     logging.getLogger("gta_v_hub").error("Unhandled command error: %s", error, exc_info=error)
 
