@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import aiohttp
+
 from gta_hub.services.catalog_sync import (
     CatalogueSyncError,
     CatalogSyncService,
@@ -138,6 +140,33 @@ class CatalogSyncTests(unittest.TestCase):
             # Verify local file retained intact
             retained = json.loads(vehicles_file.read_text(encoding="utf-8"))
             self.assertEqual(retained, initial_data)
+
+    def test_sync_placeholder_validation_vehicles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            service = CatalogSyncService(Path(temp), base_url="https://catalogue.placeholder.local")
+            with self.assertRaises(CatalogueSyncError) as ctx:
+                run_coro(service.sync_vehicles())
+            self.assertIn("placeholder domain", str(ctx.exception))
+            self.assertIn("python server.py", str(ctx.exception))
+
+    def test_sync_placeholder_validation_wheels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            service = CatalogSyncService(Path(temp), base_url="https://catalogue.placeholder.local")
+            with self.assertRaises(CatalogueSyncError) as ctx:
+                run_coro(service.sync_wheels())
+            self.assertIn("placeholder domain", str(ctx.exception))
+            self.assertIn("reload-catalogs", str(ctx.exception))
+
+    def test_sync_connection_error_includes_local_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            service = CatalogSyncService(Path(temp), base_url="http://127.0.0.1:8080")
+            with patch("aiohttp.ClientSession") as mock_session_cls:
+                mock_ctx = AsyncMock()
+                mock_session_cls.return_value.__aenter__.return_value = mock_ctx
+                with patch("gta_hub.services.catalog_sync._fetch_json", side_effect=aiohttp.ClientError("Connection refused")):
+                    with self.assertRaises(CatalogueSyncError) as ctx:
+                        run_coro(service.sync_vehicles())
+                    self.assertIn("Ensure the local catalogue server is running", str(ctx.exception))
 
 
 if __name__ == "__main__":

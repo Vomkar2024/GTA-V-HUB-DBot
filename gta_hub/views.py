@@ -46,15 +46,80 @@ HELP_SECTIONS: dict[str, str] = {
         "`/daily` — Claim daily HUB credits (not GTA$)."
     ),
     "Links & Help": (
+        "`/help` — Open the GTA V HUB command center.\n"
         "`/invite` — Get the bot invite link.\n"
         "`/support` — Open the community/support link.\n"
-        "`/ping` — Check bot latency.\n"
-        "`/hubadmin status` — Owner-only runtime status.\n"
-        "`/hubadmin sync` — Sync application commands and resolve duplicates.\n"
-        "`/hubadmin sync-catalogs` — Synchronize vehicle and wheel catalogues.\n"
-        "`/hubadmin add-vehicle` — Add a local vehicle entry."
+        "`/ping` — Check bot latency."
     ),
 }
+
+ADMIN_PANEL_TEXT: str = (
+    "Privileged operations reserved for bot owners (`OWNER_IDS`).\n"
+    "Admin commands bypass channel restrictions and can be executed anywhere.\n\n"
+    "**Core Admin Privileges & Tools:**\n"
+    "• `/hubadmin status` — Show bot uptime, gateway latency, catalog records, and sync history.\n"
+    "• `/hubadmin reload-catalogs` — Hot-reload local vehicle, wheel, job, and creator catalogs.\n"
+    "• `/hubadmin sync` — Sync Discord slash command tree (guild, global, clear-global, clear-guild).\n"
+    "• `/hubadmin sync-catalogs` — Synchronize vehicle and wheel databases with configured API.\n"
+    "• `/hubadmin add-vehicle` — Manually append a new vehicle to local catalog.\n"
+    "• `/9575` — Reopen this secret control panel anytime."
+)
+
+
+def make_admin_panel_embed() -> discord.Embed:
+    embed = make_embed(
+        "GTA V HUB • Owner & Admin Control Panel",
+        ADMIN_PANEL_TEXT,
+    )
+    embed.set_footer(text="Confidential • Restricted to bot owners (OWNER_IDS)")
+    return embed
+
+
+class AdminPanelView(discord.ui.View):
+    def __init__(self, bot: Any):
+        super().__init__(timeout=300)
+        self.bot = bot
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        allowed = bool(self.bot.settings.owner_ids and interaction.user.id in self.bot.settings.owner_ids)
+        if not allowed:
+            if hasattr(interaction, "response") and not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "You are not authorized to interact with the GTA V HUB admin panel.",
+                    ephemeral=True,
+                )
+        return allowed
+
+    @discord.ui.button(label="Status", style=discord.ButtonStyle.primary, emoji="📊", custom_id="gtavhub:admin:status_btn")
+    async def status_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        counts = self.bot.catalog.counts()
+        summary = "\n".join(f"**{kind.title()}:** {count}" for kind, count in counts.items())
+        summary += f"\n**Guilds:** {len(self.bot.guilds)}"
+        summary += f"\n**Latency:** {round(self.bot.latency * 1000)} ms"
+        if hasattr(self.bot, "catalog_sync") and hasattr(self.bot.catalog_sync, "history"):
+            history = self.bot.catalog_sync.history()
+            if history:
+                lines = [
+                    f"• {str(item.get('catalogue', 'catalogue')).title()}: "
+                    f"{item.get('records', 0)} records • {str(item.get('synced_at', ''))[:16]} UTC"
+                    for item in history
+                ]
+                summary += "\n**Recent catalogue syncs:**\n" + "\n".join(lines)
+        await interaction.response.send_message(embed=make_embed("GTA V HUB • Runtime Status", summary), ephemeral=True)
+
+    @discord.ui.button(label="Reload Catalogs", style=discord.ButtonStyle.secondary, emoji="🔄", custom_id="gtavhub:admin:reload_btn")
+    async def reload_button(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        try:
+            self.bot.catalog.load_all()
+            if hasattr(self.bot, "gta") and hasattr(self.bot.gta, "reload_vehicles"):
+                self.bot.gta.reload_vehicles()
+        except Exception as exc:
+            await interaction.response.send_message(f"Catalog reload failed: `{type(exc).__name__}`: {exc}", ephemeral=True)
+            return
+        counts = self.bot.catalog.counts()
+        summary = "\n".join(f"**{kind.title()}:** {count}" for kind, count in counts.items())
+        await interaction.response.send_message(embed=make_embed("Catalogs Reloaded", summary), ephemeral=True)
+
 
 
 class HelpSelect(discord.ui.Select):

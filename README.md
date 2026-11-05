@@ -334,12 +334,14 @@ Enabled when `ENABLE_LEGACY_COMMANDS=true`:
 | `/crew` | `crew_id: str` | Queries the Rockstar Social Club crew membership API (best-effort). |
 | `/jobs` | `creator_id: str` | Queries the Rockstar Social Club creator race mission API (best-effort). |
 
-### Owner & Administration (`/hubadmin`)
+### Owner & Administration (`/hubadmin` & `/9575`)
 
-Restricted to user IDs specified in `OWNER_IDS`. Allowed in any channel:
+The Admin section is hidden from the standard public `/help` menu and restricted to user IDs specified in `OWNER_IDS`. Admin commands are allowed in any channel (bypassing channel restrictions):
 
 | Command | Arguments | Description |
 |---|---|---|
+| `/9575` | — | **Secret Admin Trigger**: Opens the interactive GTA V HUB Owner & Admin Control Panel with quick-action buttons. |
+| `/hubadmin panel` | — | Opens the interactive GTA V HUB Owner & Admin Control Panel. |
 | `/hubadmin status` | — | Displays bot uptime, guild count, gateway latency, catalog counts, and recent sync history. |
 | `/hubadmin reload-catalogs` | — | Hot-reloads all local JSON catalogs from disk without restarting the bot process. |
 | `/hubadmin sync` | `mode: Choice[clear-global, guild, global, clear-guild]` | Manages Discord application command tree registration and resolves duplicate commands. |

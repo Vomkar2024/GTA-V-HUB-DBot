@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from gta_hub.branding import make_embed
+from gta_hub.views import AdminPanelView, make_admin_panel_embed
 
 
 class HubAdmin(commands.GroupCog, group_name="hubadmin", group_description="GTA V HUB owner tools"):
@@ -174,6 +175,54 @@ class HubAdmin(commands.GroupCog, group_name="hubadmin", group_description="GTA 
             ephemeral=True,
         )
 
+    @app_commands.command(name="panel", description="Open the GTA V HUB owner and admin control panel")
+    async def admin_panel(self, interaction: discord.Interaction) -> None:
+        embed = make_admin_panel_embed()
+        view = AdminPanelView(self.bot)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class AdminSecret(commands.Cog):
+    """Hidden admin triggers and secret commands."""
+
+    def __init__(self, bot: commands.Bot):
+        self.bot = bot
+
+    @app_commands.command(name="9575", description="Open the hidden GTA V HUB admin control panel")
+    async def secret_admin_panel(self, interaction: discord.Interaction) -> None:
+        allowed = bool(self.bot.settings.owner_ids and interaction.user.id in self.bot.settings.owner_ids)
+        if not allowed:
+            await interaction.response.send_message(
+                "You are not authorized to access the GTA V HUB admin panel.",
+                ephemeral=True,
+            )
+            return
+
+        embed = make_admin_panel_embed()
+        view = AdminPanelView(self.bot)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @commands.Cog.listener("on_message")
+    async def on_secret_message(self, message: discord.Message) -> None:
+        if message.author.bot:
+            return
+        content = message.content.strip()
+        if content in ("/9575", "9575"):
+            allowed = bool(self.bot.settings.owner_ids and message.author.id in self.bot.settings.owner_ids)
+            if not allowed:
+                return
+            try:
+                await message.delete()
+            except Exception:
+                pass
+            embed = make_admin_panel_embed()
+            view = AdminPanelView(self.bot)
+            try:
+                await message.channel.send(embed=embed, view=view, delete_after=300)
+            except Exception:
+                await message.author.send(embed=embed, view=view)
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(HubAdmin(bot))
+    await bot.add_cog(AdminSecret(bot))

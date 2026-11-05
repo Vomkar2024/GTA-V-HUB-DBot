@@ -209,6 +209,19 @@ class CatalogSyncService:
         configured = base_url or os.getenv("CATALOGUE_API_BASE_URL") or DEFAULT_BASE_URL_PLACEHOLDER
         self.base_url = configured.strip().rstrip("/")
 
+    def is_placeholder(self) -> bool:
+        clean = (self.base_url or "").strip().casefold()
+        return not clean or "placeholder.local" in clean
+
+    def validate_endpoint(self) -> None:
+        if self.is_placeholder():
+            raise CatalogueSyncError(
+                f"Catalogue API base URL is set to placeholder domain ('{self.base_url}'). "
+                "To synchronize, configure CATALOGUE_API_BASE_URL=http://127.0.0.1:8080 in .env "
+                "and start the server with 'python server.py'. "
+                "Alternatively, use '/hubadmin reload-catalogs' to reload existing local files without an API server."
+            )
+
     def vehicle_endpoint(self, page: int) -> str:
         return f"{self.base_url}/api/?game=gta5&page={page}&perPage=60&sort=alphabet&sortReverse=false&q="
 
@@ -259,6 +272,7 @@ class CatalogSyncService:
         return [item for item in payload if isinstance(item, dict)][-max(1, min(limit, 20)):][::-1]
 
     async def sync_vehicles(self) -> int:
+        self.validate_endpoint()
         timeout = aiohttp.ClientTimeout(total=30)
         rows: list[dict[str, Any]] = []
         try:
@@ -268,15 +282,19 @@ class CatalogSyncService:
                     try:
                         payload = await _fetch_json(session, url)
                     except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError) as exc:
+                        hint = ""
+                        if "127.0.0.1" in url or "localhost" in url:
+                            hint = " Ensure the local catalogue server is running ('python server.py') or use '/hubadmin reload-catalogs'."
                         log.error(
-                            "Failed to sync vehicle catalogue from '%s': %s. "
+                            "Failed to sync vehicle catalogue from '%s': %s.%s "
                             "Ensure CATALOGUE_API_BASE_URL is reachable and configured. "
                             "Existing local vehicle catalogue files were retained.",
                             url,
                             exc,
+                            hint,
                         )
                         raise CatalogueSyncError(
-                            f"Could not connect to catalogue endpoint '{url}' ({exc}). "
+                            f"Could not connect to catalogue endpoint '{url}' ({exc}).{hint} "
                             "Existing local vehicle data retained."
                         ) from exc
 
@@ -312,14 +330,18 @@ class CatalogSyncService:
         except CatalogueSyncError:
             raise
         except Exception as exc:
+            hint = ""
+            if "127.0.0.1" in self.base_url or "localhost" in self.base_url:
+                hint = " Ensure the local catalogue server is running ('python server.py') or use '/hubadmin reload-catalogs'."
             log.error(
-                "Unexpected error during vehicle catalogue sync from '%s': %s. "
+                "Unexpected error during vehicle catalogue sync from '%s': %s.%s "
                 "Existing local vehicle catalogue files were retained.",
                 self.base_url,
                 exc,
+                hint,
             )
             raise CatalogueSyncError(
-                f"Vehicle catalogue sync failed: {exc}. Existing local vehicle data retained."
+                f"Vehicle catalogue sync failed: {exc}.{hint} Existing local vehicle data retained."
             ) from exc
 
         count = _write_catalog(
@@ -332,6 +354,7 @@ class CatalogSyncService:
         return count
 
     async def sync_wheels(self) -> int:
+        self.validate_endpoint()
         timeout = aiohttp.ClientTimeout(total=25)
         url = self.wheels_endpoint()
         try:
@@ -339,15 +362,19 @@ class CatalogSyncService:
                 try:
                     payload = await _fetch_json(session, url)
                 except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError) as exc:
+                    hint = ""
+                    if "127.0.0.1" in url or "localhost" in url:
+                        hint = " Ensure the local catalogue server is running ('python server.py') or use '/hubadmin reload-catalogs'."
                     log.error(
-                        "Failed to sync wheel catalogue from '%s': %s. "
+                        "Failed to sync wheel catalogue from '%s': %s.%s "
                         "Ensure CATALOGUE_API_BASE_URL is reachable and configured. "
                         "Existing local wheel catalogue files were retained.",
                         url,
                         exc,
+                        hint,
                     )
                     raise CatalogueSyncError(
-                        f"Could not connect to wheel catalogue endpoint '{url}' ({exc}). "
+                        f"Could not connect to wheel catalogue endpoint '{url}' ({exc}).{hint} "
                         "Existing local wheel data retained."
                     ) from exc
 
@@ -355,14 +382,18 @@ class CatalogSyncService:
         except CatalogueSyncError:
             raise
         except Exception as exc:
+            hint = ""
+            if "127.0.0.1" in self.base_url or "localhost" in self.base_url:
+                hint = " Ensure the local catalogue server is running ('python server.py') or use '/hubadmin reload-catalogs'."
             log.error(
-                "Unexpected error during wheel catalogue sync from '%s': %s. "
+                "Unexpected error during wheel catalogue sync from '%s': %s.%s "
                 "Existing local wheel catalogue files were retained.",
                 self.base_url,
                 exc,
+                hint,
             )
             raise CatalogueSyncError(
-                f"Wheel catalogue sync failed: {exc}. Existing local wheel data retained."
+                f"Wheel catalogue sync failed: {exc}.{hint} Existing local wheel data retained."
             ) from exc
 
         count = _write_catalog(

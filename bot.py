@@ -83,7 +83,7 @@ class GtaHubBot(commands.Bot):
         root_name = getattr(getattr(cmd, "root_parent", None), "name", None)
         parent_name = getattr(getattr(cmd, "parent", None), "name", None)
         cmd_name = getattr(cmd, "name", "")
-        return (root_name or parent_name or cmd_name) == "hubadmin"
+        return (root_name or parent_name or cmd_name) in ("hubadmin", "admin", "9575")
 
     async def check_interaction_allowed(self, interaction: discord.Interaction) -> bool:
         if self._is_owner_admin_command(interaction):
