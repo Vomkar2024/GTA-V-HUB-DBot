@@ -23,8 +23,7 @@ async def show_catalog_results(
     if len(rows) == 1:
         embed, file = build_entry_embed_and_file(kind, rows[0])
         files = [file] if file is not None else []
-        view = CatalogResultsView(rows, kind=kind)
-        await interaction.response.send_message(embed=embed, files=files, view=view, ephemeral=True)
+        await interaction.response.send_message(embed=embed, files=files, ephemeral=True)
         return
 
     embed = make_embed(

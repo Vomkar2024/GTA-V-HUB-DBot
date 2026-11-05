@@ -133,6 +133,7 @@ class VehicleImagesTests(unittest.TestCase):
         self.assertIsInstance(attachments[0], discord.File)
         self.assertEqual(attachments[0].filename, "airbus.png")
         self.assertEqual(call_kwargs["embed"].image.url, "attachment://airbus.png")
+        self.assertIsNone(call_kwargs.get("view"))
         attachments[0].close()
 
     def test_show_catalog_results_single_match_sends_file_directly(self) -> None:
@@ -159,6 +160,7 @@ class VehicleImagesTests(unittest.TestCase):
         self.assertIsInstance(files[0], discord.File)
         self.assertEqual(files[0].filename, "airbus.png")
         self.assertEqual(call_kwargs["embed"].image.url, "attachment://airbus.png")
+        self.assertNotIn("view", call_kwargs)
         files[0].close()
 
 

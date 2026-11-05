@@ -61,7 +61,7 @@ class LegacyCommands(commands.Cog):
                 embed.set_image(url=f"attachment://{attachment_filename}")
 
         files = [file] if file is not None else []
-        view = CatalogResultsView(matches, kind="vehicles")
+        view = CatalogResultsView(matches, kind="vehicles") if len(matches) > 1 else None
         await interaction.followup.send(embed=embed, files=files, view=view, ephemeral=True)
 
     @cars.command(name="name", description="Search vehicles by vehicle name")

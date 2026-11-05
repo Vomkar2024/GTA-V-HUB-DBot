@@ -184,7 +184,7 @@ class CatalogSelect(discord.ui.Select):
         row = self.rows[int(self.values[0])]
         embed, file = build_entry_embed_and_file(self.kind, row)
         attachments = [file] if file is not None else []
-        await interaction.response.edit_message(embed=embed, attachments=attachments, view=self.view)
+        await interaction.response.edit_message(embed=embed, attachments=attachments, view=None)
 
 
 class CatalogResultsView(discord.ui.View):

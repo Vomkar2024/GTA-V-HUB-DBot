@@ -126,6 +126,26 @@ class LegacyCarsCommandTests(unittest.TestCase):
         self.assertEqual(files[0].filename, "krieger.png")
         files[0].close()
 
+    def test_cars_name_single_match_omits_dropdown_view(self) -> None:
+        interaction = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup.send = AsyncMock()
+
+        self.bot.gta.search_vehicles_by_name.return_value = [
+            {"id": "krieger", "name": "Krieger", "manufacturer": "Benefactor", "class": "Super"},
+        ]
+        self.bot.gta.vehicle_list_embed.return_value = discord.Embed(title="GTA Online Vehicles")
+
+        run_coro(self.cog.cars_name.callback(self.cog, interaction, "Krieger"))
+
+        interaction.followup.send.assert_called_once()
+        call_kwargs = interaction.followup.send.call_args.kwargs
+        self.assertIn("embed", call_kwargs)
+        self.assertIn("files", call_kwargs)
+        self.assertIsNone(call_kwargs.get("view"))
+        if call_kwargs.get("files"):
+            call_kwargs["files"][0].close()
+
     def test_cars_name_empty_results_sends_not_found(self) -> None:
         interaction = MagicMock()
         interaction.response.defer = AsyncMock()
