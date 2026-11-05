@@ -21,6 +21,8 @@ class Settings:
     weather_api_url: str | None
     sync_api_url: str | None
     log_level: str
+    enable_legacy_commands: bool = True
+    clear_global_on_startup: bool = False
 
     @property
     def allowed_channel_id(self) -> int | None:
@@ -60,9 +62,18 @@ class Settings:
             weather_api_url=_optional_url("GTA_HUB_WEATHER_API_URL"),
             sync_api_url=_optional_url("GTA_HUB_SYNC_API_URL"),
             log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+            enable_legacy_commands=_bool_env("ENABLE_LEGACY_COMMANDS", default=True),
+            clear_global_on_startup=_bool_env("CLEAR_GLOBAL_ON_STARTUP", default=False),
         )
 
 
 def _optional_url(key: str) -> str | None:
     value = os.getenv(key, "").strip()
     return value or None
+
+
+def _bool_env(key: str, default: bool = False) -> bool:
+    value = os.getenv(key, "").strip().casefold()
+    if not value:
+        return default
+    return value in ("true", "1", "yes", "on")

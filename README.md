@@ -51,12 +51,26 @@ python bot.py
 
 For fast command registration during development, set `GUILD_ID` to your test server ID. When `GUILD_ID` is unset, commands are synced globally; global command propagation can take time.
 
+### Resolving duplicate commands in Discord
+
+If slash commands appear duplicated in your server (e.g. two copies of `/help` or `/vehicle`), this happens because commands were registered **both globally and per-guild** on Discord. To clear the duplicate global commands:
+
+```bash
+python bot.py --clear-global
+```
+
+Or run `/hubadmin sync mode:Clear global commands (fixes duplicates in guild)` directly in Discord.
+
+You can also set `CLEAR_GLOBAL_ON_STARTUP=true` in `.env` to automatically purge global commands whenever syncing to a guild.
+
 ## Configuration
 
 | Variable | Required | Description |
 | --- | --- | --- |
 | `DISCORD_TOKEN` | Yes | Bot token from the Discord Developer Portal |
 | `GUILD_ID` | No | Test guild ID for quick slash-command sync |
+| `CLEAR_GLOBAL_ON_STARTUP` | No | Set to `true` to clear global commands when syncing to `GUILD_ID` |
+| `ENABLE_LEGACY_COMMANDS` | No | Set to `false` to disable legacy `/cars`, `/jobs`, `/garage`, etc. (defaults to `true`) |
 | `OWNER_IDS` | No | Comma-separated Discord user IDs allowed to use `/hubadmin` |
 | `INVITE_URL` | No | Bot OAuth2 invite URL shown by `/invite` |
 | `SUPPORT_URL` | No | Community/support invite or website |

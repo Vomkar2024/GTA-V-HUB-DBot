@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import asyncio
 import logging
 import sys
 
@@ -109,6 +111,8 @@ class GtaHubBot(commands.Bot):
             return self.is_channel_allowed(ctx.channel.id, parent_id)
 
         for extension in EXTENSIONS:
+            if extension == "gta_hub.cogs.legacy" and not self.settings.enable_legacy_commands:
+                continue
             await self.load_extension(extension)
 
         if self.settings.guild_id:
@@ -116,6 +120,10 @@ class GtaHubBot(commands.Bot):
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)
             logging.getLogger("gta_v_hub").info("Synced %d command(s) to guild %s", len(synced), self.settings.guild_id)
+            if self.settings.clear_global_on_startup:
+                self.tree.clear_commands(guild=None)
+                await self.tree.sync()
+                logging.getLogger("gta_v_hub").info("Cleared global commands to resolve duplicate commands in Discord.")
         else:
             synced = await self.tree.sync()
             logging.getLogger("gta_v_hub").info("Synced %d global command(s)", len(synced))
@@ -141,7 +149,72 @@ class _VoiceWarningFilter(logging.Filter):
         return "voice will NOT be supported" not in record.getMessage()
 
 
-def main() -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="GTA V HUB Discord Bot")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--clear-global",
+        action="store_true",
+        help="Clear all global application commands from Discord (resolves duplicate commands in servers).",
+    )
+    group.add_argument(
+        "--clear-guild",
+        action="store_true",
+        help="Clear application commands registered to the GUILD_ID specified in .env.",
+    )
+    group.add_argument(
+        "--sync-only",
+        action="store_true",
+        help="Sync application commands and exit without starting the gateway connection.",
+    )
+    return parser.parse_args(argv)
+
+
+async def _execute_cli_action(settings: Settings, action: str) -> None:
+    bot = GtaHubBot(settings)
+    async with bot:
+        await bot.login(settings.token)
+        if action == "clear-global":
+            bot.tree.clear_commands(guild=None)
+            synced = await bot.tree.sync()
+            logging.getLogger("gta_v_hub").info(
+                "Successfully cleared global commands (%d remaining). Duplicate commands should now disappear from your guild.",
+                len(synced),
+            )
+        elif action == "clear-guild":
+            if not settings.guild_id:
+                logging.getLogger("gta_v_hub").error("GUILD_ID is not configured in .env.")
+                return
+            guild = discord.Object(id=settings.guild_id)
+            bot.tree.clear_commands(guild=guild)
+            synced = await bot.tree.sync(guild=guild)
+            logging.getLogger("gta_v_hub").info(
+                "Successfully cleared commands for guild %s (%d remaining).",
+                settings.guild_id,
+                len(synced),
+            )
+        elif action == "sync-only":
+            bot.catalog.load_all()
+            for extension in EXTENSIONS:
+                if extension == "gta_hub.cogs.legacy" and not settings.enable_legacy_commands:
+                    continue
+                await bot.load_extension(extension)
+            if settings.guild_id:
+                guild = discord.Object(id=settings.guild_id)
+                bot.tree.copy_global_to(guild=guild)
+                synced = await bot.tree.sync(guild=guild)
+                logging.getLogger("gta_v_hub").info("Synced %d command(s) to guild %s.", len(synced), settings.guild_id)
+                if settings.clear_global_on_startup:
+                    bot.tree.clear_commands(guild=None)
+                    await bot.tree.sync()
+                    logging.getLogger("gta_v_hub").info("Cleared global commands.")
+            else:
+                synced = await bot.tree.sync()
+                logging.getLogger("gta_v_hub").info("Synced %d global command(s).", len(synced))
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
     settings = Settings.from_env()
     if not settings.token or settings.token == "replace_with_your_bot_token":
         raise SystemExit("DISCORD_TOKEN is missing. Copy .env.example to .env and set your bot token.")
@@ -151,6 +224,23 @@ def main() -> None:
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
     logging.getLogger("discord.client").addFilter(_VoiceWarningFilter())
+
+    action = None
+    if args.clear_global:
+        action = "clear-global"
+    elif args.clear_guild:
+        action = "clear-guild"
+    elif args.sync_only:
+        action = "sync-only"
+
+    if action:
+        try:
+            asyncio.run(_execute_cli_action(settings, action))
+        except discord.LoginFailure:
+            logging.getLogger("gta_v_hub").critical("Discord rejected the bot token. Check DISCORD_TOKEN.")
+            sys.exit(1)
+        return
+
     bot = GtaHubBot(settings)
     try:
         bot.run(settings.token, log_handler=None)

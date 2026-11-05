@@ -36,6 +36,56 @@ class HubAdmin(commands.GroupCog, group_name="hubadmin", group_description="GTA 
         summary += f"\n**Latency:** {round(self.bot.latency * 1000)} ms"
         await interaction.response.send_message(embed=make_embed("GTA V HUB • Runtime Status", summary), ephemeral=True)
 
+    @app_commands.command(name="sync", description="Manage Discord slash command registration and remove duplicates")
+    @app_commands.describe(mode="Sync action: guild, global, clear-global (fixes duplicates), or clear-guild")
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="Clear global commands (fixes duplicates in guild)", value="clear-global"),
+        app_commands.Choice(name="Sync to current guild", value="guild"),
+        app_commands.Choice(name="Sync globally", value="global"),
+        app_commands.Choice(name="Clear guild commands", value="clear-guild"),
+    ])
+    async def sync_commands(self, interaction: discord.Interaction, mode: app_commands.Choice[str]) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            if mode.value == "clear-global":
+                self.bot.tree.clear_commands(guild=None)
+                synced = await self.bot.tree.sync()
+                await interaction.followup.send(
+                    embed=make_embed(
+                        "Commands Cleared",
+                        f"Cleared all global commands ({len(synced)} active). Duplicate commands in your guild should now disappear.",
+                    ),
+                    ephemeral=True,
+                )
+            elif mode.value == "clear-guild":
+                if not interaction.guild:
+                    await interaction.followup.send("This action can only be run inside a guild.", ephemeral=True)
+                    return
+                self.bot.tree.clear_commands(guild=interaction.guild)
+                synced = await self.bot.tree.sync(guild=interaction.guild)
+                await interaction.followup.send(
+                    embed=make_embed("Guild Commands Cleared", f"Cleared commands for **{interaction.guild.name}** ({len(synced)} active)."),
+                    ephemeral=True,
+                )
+            elif mode.value == "guild":
+                if not interaction.guild:
+                    await interaction.followup.send("This action can only be run inside a guild.", ephemeral=True)
+                    return
+                self.bot.tree.copy_global_to(guild=interaction.guild)
+                synced = await self.bot.tree.sync(guild=interaction.guild)
+                await interaction.followup.send(
+                    embed=make_embed("Guild Commands Synced", f"Synced **{len(synced)}** command(s) to **{interaction.guild.name}**."),
+                    ephemeral=True,
+                )
+            elif mode.value == "global":
+                synced = await self.bot.tree.sync()
+                await interaction.followup.send(
+                    embed=make_embed("Global Commands Synced", f"Synced **{len(synced)}** global command(s). Propagation may take up to an hour across Discord."),
+                    ephemeral=True,
+                )
+        except Exception as exc:
+            await interaction.followup.send(f"Command sync failed: `{type(exc).__name__}`: {exc}", ephemeral=True)
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(HubAdmin(bot))
