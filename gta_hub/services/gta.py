@@ -49,6 +49,125 @@ class GTAService:
         ranked.sort(key=lambda item: (item[0], item[1]))
         return [item[2] for item in ranked[:limit]]
 
+    def search_vehicles_by_name(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        query = query.casefold().strip()
+        if not query:
+            return []
+        ranked: list[tuple[int, str, dict[str, Any]]] = []
+        for vehicle in self.vehicles:
+            name = str(vehicle.get("name", "")).strip()
+            name_lower = name.casefold()
+            if query in name_lower:
+                score = 0 if name_lower == query else 1 if name_lower.startswith(query) else 2
+                ranked.append((score, name_lower, vehicle))
+        ranked.sort(key=lambda item: (item[0], item[1]))
+        return [item[2] for item in ranked[:limit]]
+
+    def search_vehicles_by_manufacturer(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        query = query.casefold().strip()
+        if not query:
+            return []
+        ranked: list[tuple[int, str, dict[str, Any]]] = []
+        for vehicle in self.vehicles:
+            make = str(vehicle.get("manufacturer", "")).strip()
+            make_lower = make.casefold()
+            name_lower = str(vehicle.get("name", "")).strip().casefold()
+            if query in make_lower:
+                score = 0 if make_lower == query else 1 if make_lower.startswith(query) else 2
+                ranked.append((score, name_lower, vehicle))
+        ranked.sort(key=lambda item: (item[0], item[1]))
+        return [item[2] for item in ranked[:limit]]
+
+    def search_vehicles_by_class(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        query = query.casefold().strip()
+        if not query:
+            return []
+        ranked: list[tuple[int, str, dict[str, Any]]] = []
+        for vehicle in self.vehicles:
+            cls = str(vehicle.get("vehicle_class", vehicle.get("class", ""))).strip()
+            cls_lower = cls.casefold()
+            name_lower = str(vehicle.get("name", "")).strip().casefold()
+            if query in cls_lower:
+                score = 0 if cls_lower == query else 1 if cls_lower.startswith(query) else 2
+                ranked.append((score, name_lower, vehicle))
+        ranked.sort(key=lambda item: (item[0], item[1]))
+        return [item[2] for item in ranked[:limit]]
+
+    def autocomplete_vehicle_names(self, query: str, limit: int = 25) -> list[str]:
+        query = query.casefold().strip()
+        seen: set[str] = set()
+        results: list[str] = []
+        for vehicle in self.vehicles:
+            name = str(vehicle.get("name", "")).strip()
+            if not name or name.casefold() in seen:
+                continue
+            if not query or name.casefold().startswith(query):
+                seen.add(name.casefold())
+                results.append(name)
+                if len(results) >= limit:
+                    return results
+        if query:
+            for vehicle in self.vehicles:
+                name = str(vehicle.get("name", "")).strip()
+                if not name or name.casefold() in seen:
+                    continue
+                if query in name.casefold():
+                    seen.add(name.casefold())
+                    results.append(name)
+                    if len(results) >= limit:
+                        return results
+        return results
+
+    def autocomplete_manufacturers(self, query: str, limit: int = 25) -> list[str]:
+        query = query.casefold().strip()
+        seen: set[str] = set()
+        results: list[str] = []
+        for vehicle in self.vehicles:
+            make = str(vehicle.get("manufacturer", "")).strip()
+            if not make or make.casefold() in seen:
+                continue
+            if not query or make.casefold().startswith(query):
+                seen.add(make.casefold())
+                results.append(make)
+                if len(results) >= limit:
+                    return results
+        if query:
+            for vehicle in self.vehicles:
+                make = str(vehicle.get("manufacturer", "")).strip()
+                if not make or make.casefold() in seen:
+                    continue
+                if query in make.casefold():
+                    seen.add(make.casefold())
+                    results.append(make)
+                    if len(results) >= limit:
+                        return results
+        return results
+
+    def autocomplete_classes(self, query: str, limit: int = 25) -> list[str]:
+        query = query.casefold().strip()
+        seen: set[str] = set()
+        results: list[str] = []
+        for vehicle in self.vehicles:
+            cls = str(vehicle.get("vehicle_class", vehicle.get("class", ""))).strip()
+            if not cls or cls.casefold() in seen:
+                continue
+            if not query or cls.casefold().startswith(query):
+                seen.add(cls.casefold())
+                results.append(cls)
+                if len(results) >= limit:
+                    return results
+        if query:
+            for vehicle in self.vehicles:
+                cls = str(vehicle.get("vehicle_class", vehicle.get("class", ""))).strip()
+                if not cls or cls.casefold() in seen:
+                    continue
+                if query in cls.casefold():
+                    seen.add(cls.casefold())
+                    results.append(cls)
+                    if len(results) >= limit:
+                        return results
+        return results
+
     def find_vehicle(self, query: str) -> dict[str, Any] | None:
         matches = self.search_vehicles(query, limit=1)
         return matches[0] if matches else None

@@ -28,19 +28,73 @@ class LegacyCommands(commands.Cog):
         result = await self.bot.gta.player_stats(player)
         await interaction.followup.send(embed=self.bot.gta.stats_embed(result), ephemeral=True)
 
-    @app_commands.command(name="cars", description="Search GTA Online vehicles")
-    @app_commands.describe(query="Vehicle name, manufacturer, or class")
-    async def cars(self, interaction: discord.Interaction, query: str) -> None:
-        matches = self.bot.gta.search_vehicles(query)
+    cars = app_commands.Group(name="cars", description="Search GTA Online vehicles by category")
+
+    @cars.command(name="name", description="Search vehicles by vehicle name")
+    @app_commands.describe(query="Vehicle name")
+    async def cars_name(self, interaction: discord.Interaction, query: str) -> None:
+        await interaction.response.defer(ephemeral=True)
+        matches = self.bot.gta.search_vehicles_by_name(query)
         if not matches:
-            await interaction.response.send_message(
-                "No matching vehicles found. Add permitted entries to data/vehicles.json.",
+            await interaction.followup.send(
+                "No matching vehicles found for that name. Add permitted entries to data/vehicles.json.",
                 ephemeral=True,
             )
             return
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=self.bot.gta.vehicle_list_embed(matches), ephemeral=True
         )
+
+    @cars_name.autocomplete("query")
+    async def cars_name_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        choices = self.bot.gta.autocomplete_vehicle_names(current)
+        return [app_commands.Choice(name=name[:100], value=name[:100]) for name in choices[:25]]
+
+    @cars.command(name="manufacturer", description="Search vehicles by manufacturer")
+    @app_commands.describe(query="Manufacturer name")
+    async def cars_manufacturer(self, interaction: discord.Interaction, query: str) -> None:
+        await interaction.response.defer(ephemeral=True)
+        matches = self.bot.gta.search_vehicles_by_manufacturer(query)
+        if not matches:
+            await interaction.followup.send(
+                "No matching vehicles found for that manufacturer. Add permitted entries to data/vehicles.json.",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send(
+            embed=self.bot.gta.vehicle_list_embed(matches), ephemeral=True
+        )
+
+    @cars_manufacturer.autocomplete("query")
+    async def cars_manufacturer_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        choices = self.bot.gta.autocomplete_manufacturers(current)
+        return [app_commands.Choice(name=make[:100], value=make[:100]) for make in choices[:25]]
+
+    @cars.command(name="class", description="Search vehicles by vehicle class")
+    @app_commands.describe(query="Vehicle class")
+    async def cars_class(self, interaction: discord.Interaction, query: str) -> None:
+        await interaction.response.defer(ephemeral=True)
+        matches = self.bot.gta.search_vehicles_by_class(query)
+        if not matches:
+            await interaction.followup.send(
+                "No matching vehicles found for that class. Add permitted entries to data/vehicles.json.",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send(
+            embed=self.bot.gta.vehicle_list_embed(matches), ephemeral=True
+        )
+
+    @cars_class.autocomplete("query")
+    async def cars_class_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        choices = self.bot.gta.autocomplete_classes(current)
+        return [app_commands.Choice(name=cls[:100], value=cls[:100]) for cls in choices[:25]]
 
     @app_commands.command(name="garage", description="Manage your personal vehicle collection")
     @app_commands.describe(action="What to do", vehicle="Vehicle name for add/remove")
