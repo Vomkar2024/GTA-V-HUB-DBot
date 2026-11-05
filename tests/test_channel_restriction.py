@@ -138,6 +138,16 @@ class InteractionCheckTests(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(len(sent), 0)
 
+    def test_setup_hook_attaches_tree_interaction_check(self) -> None:
+        self.bot.catalog = MagicMock()
+        self.bot.db = MagicMock()
+        self.bot.db.initialize = AsyncMock()
+        self.bot.load_extension = AsyncMock()
+        if hasattr(self.bot, "tree") and self.bot.tree is not None:
+            self.bot.tree.sync = AsyncMock(return_value=[])
+            run_coro(self.bot.setup_hook())
+            self.assertEqual(self.bot.tree.interaction_check, self.bot.check_interaction_allowed)
+
     def test_interaction_in_disallowed_channel_rejected(self) -> None:
         interaction = MagicMock()
         interaction.channel_id = 999999999

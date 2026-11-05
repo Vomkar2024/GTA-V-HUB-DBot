@@ -42,9 +42,9 @@ class GtaHubBot(commands.Bot):
     def __init__(self, settings: Settings):
         if hasattr(discord, "Intents"):
             intents = discord.Intents.default()
-            super().__init__(command_prefix="!", intents=intents, help_command=None)
+            super().__init__(command_prefix=commands.when_mentioned, intents=intents, help_command=None)
         else:  # pragma: no cover
-            super().__init__(command_prefix="!", help_command=None)
+            super().__init__(command_prefix=commands.when_mentioned, help_command=None)
         self.settings = settings
         self.catalog = CatalogStore(settings.data_dir)
         self.db = Database(str(settings.database_path))
@@ -87,9 +87,7 @@ class GtaHubBot(commands.Bot):
         await self.db.initialize()
 
         if hasattr(self, "tree") and self.tree is not None:
-            @self.tree.interaction_check
-            async def global_interaction_check(interaction: discord.Interaction) -> bool:
-                return await self.check_interaction_allowed(interaction)
+            self.tree.interaction_check = self.check_interaction_allowed
 
             if app_commands is not None:
                 @self.tree.error
@@ -138,6 +136,11 @@ class GtaHubBot(commands.Bot):
             )
 
 
+class _VoiceWarningFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "voice will NOT be supported" not in record.getMessage()
+
+
 def main() -> None:
     settings = Settings.from_env()
     if not settings.token or settings.token == "replace_with_your_bot_token":
@@ -147,6 +150,7 @@ def main() -> None:
         level=getattr(logging, settings.log_level, logging.INFO),
         format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     )
+    logging.getLogger("discord.client").addFilter(_VoiceWarningFilter())
     bot = GtaHubBot(settings)
     try:
         bot.run(settings.token, log_handler=None)
