@@ -24,8 +24,12 @@ def make_embed(
 def truncate(value: object, limit: int = 100) -> str:
     text = str(value) if value is not None else ""
     text = text.strip()
+    if limit <= 0:
+        return ""
     if len(text) <= limit:
         return text
+    if limit == 1:
+        return text[:1]
     return text[: max(0, limit - 1)].rstrip() + "…"
 
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import os
 import sys
 import unittest
@@ -10,11 +9,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 if "aiosqlite" not in sys.modules:
     sys.modules["aiosqlite"] = MagicMock()
 
-from gta_hub.config import Settings
 from bot import GtaHubBot
+from gta_hub.config import Settings
 
 
-class ChannelRestrictionTests(unittest.TestCase):
+def run_coro(coro):
+    while True:
+        try:
+            coro.send(None)
+        except StopIteration as exc:
+            return exc.value
+
+
+class ChannelRestrictionConfigTests(unittest.TestCase):
     def test_default_allowed_channel_id(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             settings = Settings.from_env()
@@ -91,18 +98,6 @@ class ChannelRestrictionTests(unittest.TestCase):
         self.assertTrue(bot.is_channel_allowed(None))
 
 
-def run_coro(coro):
-    try:
-        coro.send(None)
-    except StopIteration as exc:
-        return exc.value
-    try:
-        coro.send(None)
-    except StopIteration as exc:
-        return exc.value
-    return None
-
-
 class InteractionCheckTests(unittest.TestCase):
     def setUp(self) -> None:
         self.settings = Settings(
@@ -128,15 +123,11 @@ class InteractionCheckTests(unittest.TestCase):
         interaction.user.id = 2222
         interaction.command.root_parent = None
         interaction.response.is_done.return_value = False
-
-        sent = []
-        async def mock_send(*args, **kwargs):
-            sent.append((args, kwargs))
-        interaction.response.send_message = mock_send
+        interaction.response.send_message = AsyncMock()
 
         result = run_coro(self.bot.check_interaction_allowed(interaction))
         self.assertTrue(result)
-        self.assertEqual(len(sent), 0)
+        interaction.response.send_message.assert_not_called()
 
     def test_setup_hook_attaches_tree_interaction_check(self) -> None:
         self.bot.catalog = MagicMock()
@@ -155,15 +146,11 @@ class InteractionCheckTests(unittest.TestCase):
         interaction.user.id = 2222
         interaction.command.root_parent = None
         interaction.response.is_done.return_value = False
-
-        sent = []
-        async def mock_send(*args, **kwargs):
-            sent.append((args, kwargs))
-        interaction.response.send_message = mock_send
+        interaction.response.send_message = AsyncMock()
 
         result = run_coro(self.bot.check_interaction_allowed(interaction))
         self.assertFalse(result)
-        self.assertEqual(len(sent), 1)
+        interaction.response.send_message.assert_called_once()
 
     def test_owner_admin_command_allowed_in_any_channel(self) -> None:
         interaction = MagicMock()
@@ -172,15 +159,11 @@ class InteractionCheckTests(unittest.TestCase):
         interaction.user.id = 1111
         interaction.command.root_parent.name = "hubadmin"
         interaction.response.is_done.return_value = False
-
-        sent = []
-        async def mock_send(*args, **kwargs):
-            sent.append((args, kwargs))
-        interaction.response.send_message = mock_send
+        interaction.response.send_message = AsyncMock()
 
         result = run_coro(self.bot.check_interaction_allowed(interaction))
         self.assertTrue(result)
-        self.assertEqual(len(sent), 0)
+        interaction.response.send_message.assert_not_called()
 
 
 if __name__ == "__main__":

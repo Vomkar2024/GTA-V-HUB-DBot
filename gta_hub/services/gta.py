@@ -9,11 +9,14 @@ import aiohttp
 import discord
 
 
-
 class GTAService:
     def __init__(self, data_file: Path) -> None:
         self.data_file = Path(data_file)
         self.vehicles: list[dict[str, Any]] = self._load_vehicles()
+
+    def reload_vehicles(self) -> int:
+        self.vehicles = self._load_vehicles()
+        return len(self.vehicles)
 
     def _load_vehicles(self) -> list[dict[str, Any]]:
         if not self.data_file.exists():
@@ -32,12 +35,14 @@ class GTAService:
         query = query.casefold().strip()
         if not query:
             return []
-        ranked = []
+        ranked: list[tuple[int, str, dict[str, Any]]] = []
         for vehicle in self.vehicles:
             name = str(vehicle.get("name", ""))
-            searchable = " ".join(
-                [name, str(vehicle.get("manufacturer", "")), str(vehicle.get("vehicle_class", vehicle.get("class", "")))]
-            ).casefold()
+            searchable = " ".join([
+                name,
+                str(vehicle.get("manufacturer", "")),
+                str(vehicle.get("vehicle_class", vehicle.get("class", ""))),
+            ]).casefold()
             if query in searchable:
                 score = 0 if name.casefold() == query else 1 if name.casefold().startswith(query) else 2
                 ranked.append((score, name.casefold(), vehicle))
@@ -50,10 +55,18 @@ class GTAService:
 
     @staticmethod
     def value(data: dict[str, Any], *keys: str) -> str:
+        aliases: dict[str, tuple[str, ...]] = {
+            "cost": ("cost", "price"),
+            "vehicle_class": ("vehicle_class", "class", "category"),
+            "top_speed_mph": ("top_speed_mph", "top_speed", "max_speed"),
+        }
         for key in keys:
-            value = data.get(key)
-            if value not in (None, "", "None"):
-                return str(value)
+            for candidate in aliases.get(key, (key,)):
+                val = data.get(candidate)
+                if val not in (None, "", "None"):
+                    if candidate == "price" and isinstance(val, (int, float)):
+                        return f"${val:,.0f}"
+                    return str(val)
         return "Not available"
 
     def vehicle_list_embed(self, vehicles: list[dict[str, Any]]) -> discord.Embed:
@@ -159,7 +172,6 @@ class GTAService:
             embed.description = f"Rockstar service error: {data['error'][:250]}"
             return embed
         payload = data.get("payload", {})
-        # Rockstar's legacy response is not a documented stable API. Display only validated fields.
         ranks = payload.get("crewRanks", []) if isinstance(payload, dict) else []
         embed.description = f"Crew response received. Rank groups returned: **{len(ranks)}**."
         embed.set_footer(text="Legacy Rockstar endpoint; details may vary or become unavailable.")

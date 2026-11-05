@@ -17,10 +17,12 @@ from gta_hub.branding import make_embed
 from gta_hub.catalog import CatalogStore
 from gta_hub.config import Settings
 from gta_hub.database import Database
+from gta_hub.services.catalog_sync import CatalogSyncService
 from gta_hub.services.gta import GTAService
 
 EXTENSIONS = (
     "gta_hub.cogs.general",
+    "gta_hub.cogs.community",
     "gta_hub.cogs.vehicles",
     "gta_hub.cogs.wheels",
     "gta_hub.cogs.jobs",
@@ -28,6 +30,14 @@ EXTENSIONS = (
     "gta_hub.cogs.admin",
     "gta_hub.cogs.legacy",
 )
+
+
+if app_commands is not None:
+    class ChannelRestrictedError(app_commands.CheckFailure):
+        """Raised when an interaction occurs in a disallowed channel."""
+else:  # pragma: no cover
+    class ChannelRestrictedError(Exception):  # type: ignore
+        pass
 
 
 class GtaHubBot(commands.Bot):
@@ -51,6 +61,7 @@ class GtaHubBot(commands.Bot):
         self.catalog = CatalogStore(settings.data_dir)
         self.db = Database(str(settings.database_path))
         self.gta = GTAService(settings.data_dir / "vehicles.json")
+        self.catalog_sync = CatalogSyncService(settings.data_dir)
 
     def is_channel_allowed(self, channel_id: int | None, parent_id: int | None = None) -> bool:
         if not self.settings.allowed_channel_ids:
@@ -61,14 +72,19 @@ class GtaHubBot(commands.Bot):
             return True
         return False
 
+    def _is_owner_admin_command(self, interaction: discord.Interaction) -> bool:
+        if not self.settings.owner_ids or interaction.user.id not in self.settings.owner_ids:
+            return False
+        cmd = interaction.command
+        if not cmd:
+            return False
+        root_name = getattr(getattr(cmd, "root_parent", None), "name", None)
+        parent_name = getattr(getattr(cmd, "parent", None), "name", None)
+        cmd_name = getattr(cmd, "name", "")
+        return (root_name or parent_name or cmd_name) == "hubadmin"
+
     async def check_interaction_allowed(self, interaction: discord.Interaction) -> bool:
-        if (
-            self.settings.owner_ids
-            and interaction.user.id in self.settings.owner_ids
-            and interaction.command
-            and getattr(interaction.command, "root_parent", None) is not None
-            and interaction.command.root_parent.name == "hubadmin"
-        ):
+        if self._is_owner_admin_command(interaction):
             return True
 
         parent_id = getattr(interaction.channel, "parent_id", None)
@@ -94,6 +110,15 @@ class GtaHubBot(commands.Bot):
             if app_commands is not None:
                 @self.tree.error
                 async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+                    if isinstance(error, ChannelRestrictedError):
+                        if not interaction.response.is_done():
+                            channels_mention = ", ".join(f"<#{cid}>" for cid in sorted(self.settings.allowed_channel_ids))
+                            embed = make_embed(
+                                "Channel Restricted",
+                                f"GTA V HUB commands can only be used in {channels_mention}."
+                            )
+                            await interaction.response.send_message(embed=embed, ephemeral=True)
+                        return
                     if isinstance(error, app_commands.CheckFailure):
                         if not interaction.response.is_done():
                             channels_mention = ", ".join(f"<#{cid}>" for cid in sorted(self.settings.allowed_channel_ids))
@@ -119,11 +144,15 @@ class GtaHubBot(commands.Bot):
             guild = discord.Object(id=self.settings.guild_id)
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)
-            logging.getLogger("gta_v_hub").info("Synced %d command(s) to guild %s", len(synced), self.settings.guild_id)
+            logging.getLogger("gta_v_hub").info(
+                "Synced %d command(s) to guild %s", len(synced), self.settings.guild_id
+            )
             if self.settings.clear_global_on_startup:
                 self.tree.clear_commands(guild=None)
                 await self.tree.sync()
-                logging.getLogger("gta_v_hub").info("Cleared global commands to resolve duplicate commands in Discord.")
+                logging.getLogger("gta_v_hub").info(
+                    "Cleared all global commands to prevent duplicates in guilds."
+                )
         else:
             synced = await self.tree.sync()
             logging.getLogger("gta_v_hub").info("Synced %d global command(s)", len(synced))

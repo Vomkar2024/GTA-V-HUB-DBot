@@ -16,15 +16,11 @@ from gta_hub.config import Settings
 
 
 def run_coro(coro):
-    try:
-        coro.send(None)
-    except StopIteration as exc:
-        return exc.value
-    try:
-        coro.send(None)
-    except StopIteration as exc:
-        return exc.value
-    return None
+    while True:
+        try:
+            coro.send(None)
+        except StopIteration as exc:
+            return exc.value
 
 
 class CommandSyncConfigTests(unittest.TestCase):
@@ -101,26 +97,28 @@ class SetupHookSyncTests(unittest.TestCase):
         bot.catalog = MagicMock()
         bot.db = MagicMock()
         bot.db.initialize = AsyncMock()
-        loaded = []
+        loaded: list[str] = []
         bot.load_extension = AsyncMock(side_effect=lambda ext: loaded.append(ext))
         bot.tree.copy_global_to = MagicMock()
         bot.tree.sync = AsyncMock(return_value=[])
 
         run_coro(bot.setup_hook())
         self.assertNotIn("gta_hub.cogs.legacy", loaded)
+        self.assertIn("gta_hub.cogs.community", loaded)
 
     def test_setup_hook_loads_legacy_when_enabled(self) -> None:
         bot = self._create_bot(enable_legacy_commands=True)
         bot.catalog = MagicMock()
         bot.db = MagicMock()
         bot.db.initialize = AsyncMock()
-        loaded = []
+        loaded: list[str] = []
         bot.load_extension = AsyncMock(side_effect=lambda ext: loaded.append(ext))
         bot.tree.copy_global_to = MagicMock()
         bot.tree.sync = AsyncMock(return_value=[])
 
         run_coro(bot.setup_hook())
         self.assertIn("gta_hub.cogs.legacy", loaded)
+        self.assertIn("gta_hub.cogs.community", loaded)
 
     def test_setup_hook_clears_global_when_configured(self) -> None:
         bot = self._create_bot(clear_global_on_startup=True)

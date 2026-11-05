@@ -45,6 +45,22 @@ class CatalogStoreTests(unittest.TestCase):
         with self.assertRaises(CatalogError):
             store.load_all()
 
+    def test_add_persists_manual_catalog_entry(self) -> None:
+        store = CatalogStore(self.data_dir)
+        store.load_all()
+        store.add("vehicles", {"name": "Comet S2", "manufacturer": "Pfister"})
+        self.assertEqual(store.search("vehicles", "Comet S2")[0]["name"], "Comet S2")
+        with self.assertRaises(ValueError):
+            store.add("vehicles", {"name": "Comet S2", "manufacturer": "Pfister"})
+
+    def test_all_and_counts(self) -> None:
+        store = CatalogStore(self.data_dir)
+        store.load_all()
+        self.assertEqual(store.count("vehicles"), 0)
+        self.assertEqual(len(store.all("vehicles")), 0)
+        with self.assertRaises(KeyError):
+            store.all("unknown_catalog")
+
 
 if __name__ == "__main__":
     unittest.main()

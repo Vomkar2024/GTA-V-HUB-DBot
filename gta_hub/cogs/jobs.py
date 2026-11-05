@@ -50,7 +50,8 @@ class Jobs(commands.Cog):
     @job.command(name="sync", description="Resolve a Social Club job URL through your configured provider")
     @app_commands.describe(url="Public Social Club job URL")
     async def sync_job(self, interaction: discord.Interaction, url: str) -> None:
-        parsed = urlparse(url)
+        clean_url = url.strip()
+        parsed = urlparse(clean_url)
         host = (parsed.hostname or "").casefold()
         trusted_host = host == "rockstargames.com" or host.endswith(".rockstargames.com")
         if parsed.scheme != "https" or not trusted_host:
@@ -67,7 +68,7 @@ class Jobs(commands.Cog):
         try:
             timeout = aiohttp.ClientTimeout(total=15)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(endpoint, params={"url": url}) as response:
+                async with session.get(endpoint, params={"url": clean_url}) as response:
                     response.raise_for_status()
                     data = await response.json(content_type=None)
         except (aiohttp.ClientError, TimeoutError, ValueError) as exc:
@@ -80,7 +81,7 @@ class Jobs(commands.Cog):
         for key in ("creator", "platform"):
             if data.get(key):
                 embed.add_field(name=key.title(), value=truncate(data[key]), inline=True)
-        result_url = safe_url(data.get("url")) or url
+        result_url = safe_url(data.get("url")) or clean_url
         embed.add_field(name="Job link", value=f"[Open job]({result_url})", inline=False)
         await interaction.followup.send(embed=embed, ephemeral=True)
 

@@ -6,7 +6,7 @@ import discord
 
 from gta_hub.branding import make_embed, safe_url, truncate
 
-HELP_SECTIONS = {
+HELP_SECTIONS: dict[str, str] = {
     "Overview": (
         "**GTA V HUB** is your Los Santos companion. Use the menu to browse command groups.\n\n"
         "All catalog searches use the JSON files in the bot's `data/` directory."
@@ -33,6 +33,9 @@ HELP_SECTIONS = {
         "Set `GTA_HUB_WEATHER_API_URL` in `.env` to enable live weather data."
     ),
     "Garage & Community": (
+        "`/community link` — Link your Rockstar nickname and platform.\n"
+        "`/community profile` — View a linked community profile.\n"
+        "`/community stats` — View HUB credits, daily claims, and streak.\n"
         "`/cars` — Search vehicles using the shared vehicle catalogue.\n"
         "`/garage` — View, add, and remove saved vehicles.\n"
         "`/compare` — Compare two vehicles.\n"
@@ -44,13 +47,16 @@ HELP_SECTIONS = {
         "`/invite` — Get the bot invite link.\n"
         "`/support` — Open the community/support link.\n"
         "`/ping` — Check bot latency.\n"
-        "`/hubadmin status` — Owner-only runtime status."
+        "`/hubadmin status` — Owner-only runtime status.\n"
+        "`/hubadmin sync` — Sync application commands and resolve duplicates.\n"
+        "`/hubadmin sync-catalogs` — Import public vehicle and wheel catalogues.\n"
+        "`/hubadmin add-vehicle` — Add a local vehicle entry."
     ),
 }
 
 
 class HelpSelect(discord.ui.Select):
-    def __init__(self):
+    def __init__(self) -> None:
         options = [
             discord.SelectOption(label=label, description=f"Show {label.lower()} commands", value=label)
             for label in HELP_SECTIONS
@@ -87,12 +93,16 @@ class CatalogSelect(discord.ui.Select):
     def __init__(self, rows: list[dict[str, Any]], *, kind: str):
         self.rows = rows
         self.kind = kind
-        options = []
+        options: list[discord.SelectOption] = []
         for index, row in enumerate(rows[:25]):
             name = truncate(row.get("name") or row.get("title") or "Unnamed entry", 100)
             detail = row.get("manufacturer") or row.get("class") or row.get("creator") or row.get("type")
             description = truncate(detail or f"Open {kind[:-1] if kind.endswith('s') else kind} details", 100)
             options.append(discord.SelectOption(label=name or "Unnamed entry", description=description, value=str(index)))
+
+        if not options:
+            options.append(discord.SelectOption(label="No entries available", value="none", default=True))
+
         super().__init__(
             placeholder="Select a result to view details…",
             min_values=1,
@@ -101,6 +111,9 @@ class CatalogSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction) -> None:
+        if self.values[0] == "none" or not self.rows:
+            await interaction.response.defer()
+            return
         row = self.rows[int(self.values[0])]
         await interaction.response.edit_message(embed=entry_embed(self.kind, row), view=self.view)
 
@@ -117,7 +130,7 @@ def entry_embed(kind: str, row: dict[str, Any]) -> discord.Embed:
     embed = make_embed(title, truncate(description, 3500) if description else None)
 
     labels = {
-        "vehicles": ("manufacturer", "class", "tier", "price", "top_speed", "lap_time"),
+        "vehicles": ("manufacturer", "class", "tier", "price", "drivetrain", "top_speed", "lap_time", "seats"),
         "wheels": ("type", "price", "traction_bias", "anti_roll", "slip_angle", "suggested"),
         "jobs": ("creator", "platform"),
         "creators": ("platform",),

@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import tempfile
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("gta_v_hub.catalog")
 
-CATALOG_FILES = {
+CATALOG_FILES: dict[str, str] = {
     "vehicles": "vehicles.json",
     "wheels": "wheels.json",
     "jobs": "jobs.json",
@@ -78,6 +80,35 @@ class CatalogStore:
 
         scored.sort(key=lambda item: (-item[0], item[1]))
         return [row for _, _, row in scored[: max(1, min(limit, 25))]]
+
+    def add(self, kind: str, row: dict[str, Any]) -> None:
+        """Add a local/manual catalogue entry and persist it atomically."""
+        self._ensure_loaded()
+        if kind not in CATALOG_FILES:
+            raise KeyError(f"Unknown catalog: {kind}")
+        name = _display_name(row).casefold()
+        manufacturer = str(row.get("manufacturer") or "").casefold()
+        for existing in self._catalogs[kind]:
+            if (
+                _display_name(existing).casefold() == name
+                and str(existing.get("manufacturer") or "").casefold() == manufacturer
+            ):
+                raise ValueError("That catalogue entry already exists.")
+        rows = [*self._catalogs[kind], dict(row, _catalog_source="manual")]
+        path = self.data_dir / CATALOG_FILES[kind]
+        fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(rows, handle, ensure_ascii=False, indent=2)
+                handle.write("\n")
+            os.replace(temp_name, path)
+        except Exception:
+            try:
+                os.unlink(temp_name)
+            except OSError:
+                pass
+            raise
+        self._catalogs[kind] = rows
 
     def count(self, kind: str) -> int:
         self._ensure_loaded()
