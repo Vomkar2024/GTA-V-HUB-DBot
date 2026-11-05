@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Any
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 from gta_hub.branding import make_embed
 from gta_hub.services.gta import GTAService
+from gta_hub.views import CatalogResultsView, resolve_vehicle_image
 
 
 class LegacyCommands(commands.Cog):
@@ -30,19 +34,45 @@ class LegacyCommands(commands.Cog):
 
     cars = app_commands.Group(name="cars", description="Search GTA Online vehicles by category")
 
+    async def _send_vehicle_results(
+        self,
+        interaction: discord.Interaction,
+        matches: list[dict[str, Any]],
+        not_found_message: str,
+    ) -> None:
+        if not matches:
+            await interaction.followup.send(not_found_message, ephemeral=True)
+            return
+
+        file: discord.File | None = None
+        attachment_filename: str | None = None
+        for v in matches:
+            image_path = resolve_vehicle_image(v)
+            if image_path and image_path.is_file():
+                attachment_filename = image_path.name
+                file = discord.File(fp=str(image_path), filename=attachment_filename)
+                break
+
+        try:
+            embed = self.bot.gta.vehicle_list_embed(matches, attachment_filename=attachment_filename)
+        except TypeError:
+            embed = self.bot.gta.vehicle_list_embed(matches)
+            if attachment_filename:
+                embed.set_image(url=f"attachment://{attachment_filename}")
+
+        files = [file] if file is not None else []
+        view = CatalogResultsView(matches, kind="vehicles")
+        await interaction.followup.send(embed=embed, files=files, view=view, ephemeral=True)
+
     @cars.command(name="name", description="Search vehicles by vehicle name")
     @app_commands.describe(query="Vehicle name")
     async def cars_name(self, interaction: discord.Interaction, query: str) -> None:
         await interaction.response.defer(ephemeral=True)
         matches = self.bot.gta.search_vehicles_by_name(query)
-        if not matches:
-            await interaction.followup.send(
-                "No matching vehicles found for that name. Add permitted entries to data/vehicles.json.",
-                ephemeral=True,
-            )
-            return
-        await interaction.followup.send(
-            embed=self.bot.gta.vehicle_list_embed(matches), ephemeral=True
+        await self._send_vehicle_results(
+            interaction,
+            matches,
+            "No matching vehicles found for that name. Add permitted entries to data/vehicles.json.",
         )
 
     @cars_name.autocomplete("query")
@@ -57,14 +87,10 @@ class LegacyCommands(commands.Cog):
     async def cars_manufacturer(self, interaction: discord.Interaction, query: str) -> None:
         await interaction.response.defer(ephemeral=True)
         matches = self.bot.gta.search_vehicles_by_manufacturer(query)
-        if not matches:
-            await interaction.followup.send(
-                "No matching vehicles found for that manufacturer. Add permitted entries to data/vehicles.json.",
-                ephemeral=True,
-            )
-            return
-        await interaction.followup.send(
-            embed=self.bot.gta.vehicle_list_embed(matches), ephemeral=True
+        await self._send_vehicle_results(
+            interaction,
+            matches,
+            "No matching vehicles found for that manufacturer. Add permitted entries to data/vehicles.json.",
         )
 
     @cars_manufacturer.autocomplete("query")
@@ -79,14 +105,10 @@ class LegacyCommands(commands.Cog):
     async def cars_class(self, interaction: discord.Interaction, query: str) -> None:
         await interaction.response.defer(ephemeral=True)
         matches = self.bot.gta.search_vehicles_by_class(query)
-        if not matches:
-            await interaction.followup.send(
-                "No matching vehicles found for that class. Add permitted entries to data/vehicles.json.",
-                ephemeral=True,
-            )
-            return
-        await interaction.followup.send(
-            embed=self.bot.gta.vehicle_list_embed(matches), ephemeral=True
+        await self._send_vehicle_results(
+            interaction,
+            matches,
+            "No matching vehicles found for that class. Add permitted entries to data/vehicles.json.",
         )
 
     @cars_class.autocomplete("query")

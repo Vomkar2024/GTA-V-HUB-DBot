@@ -188,7 +188,8 @@ class AdminSecret(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="9575", description="Open the hidden GTA V HUB admin control panel")
+    @app_commands.command(name="hub9575", description="Open the hidden GTA V HUB admin control panel")
+    @app_commands.default_permissions(administrator=True)
     async def secret_admin_panel(self, interaction: discord.Interaction) -> None:
         allowed = bool(self.bot.settings.owner_ids and interaction.user.id in self.bot.settings.owner_ids)
         if not allowed:
@@ -206,8 +207,8 @@ class AdminSecret(commands.Cog):
     async def on_secret_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
-        content = message.content.strip()
-        if content in ("/9575", "9575"):
+        content = message.content.strip().lower()
+        if content in ("!hub9575", "hub9575", "!9575", "9575", "/hub9575", "/9575"):
             allowed = bool(self.bot.settings.owner_ids and message.author.id in self.bot.settings.owner_ids)
             if not allowed:
                 return

@@ -62,7 +62,7 @@ ADMIN_PANEL_TEXT: str = (
     "• `/hubadmin sync` — Sync Discord slash command tree (guild, global, clear-global, clear-guild).\n"
     "• `/hubadmin sync-catalogs` — Synchronize vehicle and wheel databases with configured API.\n"
     "• `/hubadmin add-vehicle` — Manually append a new vehicle to local catalog.\n"
-    "• `/9575` — Reopen this secret control panel anytime."
+    "• `!hub9575` — Reopen this secret control panel anytime."
 )
 
 

@@ -102,6 +102,43 @@ class LegacyCarsCommandTests(unittest.TestCase):
         self.assertEqual(len(choices_cls), 1)
         self.assertEqual(choices_cls[0].name, "Super")
 
+    def test_cars_name_attaches_vehicle_image_and_catalog_view(self) -> None:
+        interaction = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup.send = AsyncMock()
+
+        self.bot.gta.search_vehicles_by_name.return_value = [
+            {"id": "krieger", "name": "Krieger", "manufacturer": "Benefactor", "class": "Super"},
+            {"id": "benefactor-krieger", "name": "Benefactor Krieger", "manufacturer": "Benefactor", "class": "Super"},
+        ]
+        self.bot.gta.vehicle_list_embed.return_value = discord.Embed(title="GTA Online Vehicles")
+
+        run_coro(self.cog.cars_name.callback(self.cog, interaction, "Krieger"))
+
+        interaction.followup.send.assert_called_once()
+        call_kwargs = interaction.followup.send.call_args.kwargs
+        self.assertIn("embed", call_kwargs)
+        self.assertIn("files", call_kwargs)
+        self.assertIn("view", call_kwargs)
+
+        files = call_kwargs["files"]
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0].filename, "krieger.png")
+        files[0].close()
+
+    def test_cars_name_empty_results_sends_not_found(self) -> None:
+        interaction = MagicMock()
+        interaction.response.defer = AsyncMock()
+        interaction.followup.send = AsyncMock()
+
+        self.bot.gta.search_vehicles_by_name.return_value = []
+
+        run_coro(self.cog.cars_name.callback(self.cog, interaction, "NonExistentVehicleXYZ"))
+
+        interaction.followup.send.assert_called_once()
+        args = interaction.followup.send.call_args[0]
+        self.assertIn("No matching vehicles found", args[0])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -188,7 +188,11 @@ class GTAService:
                     return str(val)
         return "Not available"
 
-    def vehicle_list_embed(self, vehicles: list[dict[str, Any]]) -> discord.Embed:
+    def vehicle_list_embed(
+        self,
+        vehicles: list[dict[str, Any]],
+        attachment_filename: str | None = None,
+    ) -> discord.Embed:
         embed = discord.Embed(title="GTA Online Vehicles", color=0xE85D24)
         for vehicle in vehicles[:8]:
             embed.add_field(
@@ -200,6 +204,8 @@ class GTAService:
                 )[:1024],
                 inline=True,
             )
+        if attachment_filename:
+            embed.set_image(url=f"attachment://{attachment_filename}")
         embed.set_footer(text="Bundled reference data; verify availability and prices in-game.")
         return embed
 

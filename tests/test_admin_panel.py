@@ -45,7 +45,7 @@ class AdminPanelHelpTests(unittest.TestCase):
         self.assertIn("/hubadmin sync", ADMIN_PANEL_TEXT)
         self.assertIn("/hubadmin sync-catalogs", ADMIN_PANEL_TEXT)
         self.assertIn("/hubadmin add-vehicle", ADMIN_PANEL_TEXT)
-        self.assertIn("/9575", ADMIN_PANEL_TEXT)
+        self.assertIn("!hub9575", ADMIN_PANEL_TEXT)
 
     def test_make_admin_panel_embed(self) -> None:
         embed = make_admin_panel_embed()
@@ -118,7 +118,7 @@ class SecretAdminCommandTests(unittest.TestCase):
         self.admin_secret = AdminSecret(self.bot)
         self.hub_admin = HubAdmin(self.bot)
 
-    def test_secret_9575_rejected_for_non_owner(self) -> None:
+    def test_secret_hub9575_rejected_for_non_owner(self) -> None:
         interaction = MagicMock()
         interaction.user.id = 99999
         interaction.response.send_message = AsyncMock()
@@ -127,7 +127,7 @@ class SecretAdminCommandTests(unittest.TestCase):
         interaction.response.send_message.assert_called_once()
         self.assertIn("not authorized", interaction.response.send_message.call_args[0][0])
 
-    def test_secret_9575_allowed_for_owner(self) -> None:
+    def test_secret_hub9575_allowed_for_owner(self) -> None:
         interaction = MagicMock()
         interaction.user.id = 12345
         interaction.response.send_message = AsyncMock()
@@ -153,7 +153,7 @@ class SecretAdminCommandTests(unittest.TestCase):
         message = MagicMock()
         message.author.bot = False
         message.author.id = 12345
-        message.content = "/9575"
+        message.content = "!hub9575"
         message.delete = AsyncMock()
         message.channel.send = AsyncMock()
 
@@ -165,7 +165,7 @@ class SecretAdminCommandTests(unittest.TestCase):
         message = MagicMock()
         message.author.bot = False
         message.author.id = 88888
-        message.content = "/9575"
+        message.content = "!hub9575"
         message.delete = AsyncMock()
         message.channel.send = AsyncMock()
 
@@ -192,12 +192,12 @@ class BotAdminBypassTests(unittest.TestCase):
         )
         self.bot = GtaHubBot(self.settings)
 
-    def test_9575_bypasses_channel_restrictions_for_owner(self) -> None:
+    def test_hub9575_bypasses_channel_restrictions_for_owner(self) -> None:
         interaction = MagicMock()
         interaction.channel_id = 999999999  # Restricted channel
         interaction.channel.parent_id = None
         interaction.user.id = 12345  # Owner
-        interaction.command.name = "9575"
+        interaction.command.name = "hub9575"
         interaction.command.root_parent = None
         interaction.command.parent = None
         interaction.response.is_done.return_value = False
@@ -207,12 +207,12 @@ class BotAdminBypassTests(unittest.TestCase):
         self.assertTrue(result)
         interaction.response.send_message.assert_not_called()
 
-    def test_9575_fails_channel_check_for_non_owner(self) -> None:
+    def test_hub9575_fails_channel_check_for_non_owner(self) -> None:
         interaction = MagicMock()
         interaction.channel_id = 999999999  # Restricted channel
         interaction.channel.parent_id = None
         interaction.user.id = 55555  # Non-owner
-        interaction.command.name = "9575"
+        interaction.command.name = "hub9575"
         interaction.command.root_parent = None
         interaction.command.parent = None
         interaction.response.is_done.return_value = False

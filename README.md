@@ -29,7 +29,6 @@ A modular, asynchronous Discord companion bot and first-party catalogue API for 
   - [Jobs & Creators](#jobs--creators)
   - [Community, Garage & Economy](#community-garage--economy)
   - [Legacy & Lookups](#legacy--lookups)
-  - [Owner & Administration (`/hubadmin`)](#owner--administration-hubadmin)
 - [First-Party Catalogue API Reference](#first-party-catalogue-api-reference)
 - [Catalog Data & Schema](#catalog-data--schema)
 - [Catalogue Synchronization](#catalogue-synchronization)
@@ -54,7 +53,7 @@ All bot catalog searches query local, atomic JSON datasets stored in `data/`, gu
 - **Interactive Discord UI**: Embeds styled in a custom neon-purple theme (`#A855F7`) featuring interactive select menus, dynamic category navigation, and external URL buttons.
 - **Persistent Garage & Community System**: Asynchronous SQLite storage (using `aiosqlite` in WAL mode) for personal player garages, linked Rockstar Social Club profiles, and daily reward streaks.
 - **First-Party Catalogue API Server**: A standalone `aiohttp.web` REST server (`server.py`) serving vehicle endpoints (with pagination, sorting, and filtering), wheel specifications, and health metrics.
-- **Channel Scoping & Thread Awareness**: Enforce bot interactions to designated channels (`ALLOWED_CHANNEL_ID`) with automatic ephemeral redirects and thread parent detection. Owner administration commands automatically bypass restrictions.
+- **Channel Scoping & Thread Awareness**: Enforce bot interactions to designated channels (`ALLOWED_CHANNEL_ID`) with automatic ephemeral redirects and thread parent detection. Owner commands automatically bypass restrictions.
 - **Slash Command Management**: Built-in CLI flags and owner commands to resolve duplicate command registrations and manage global vs. guild command tree propagation.
 - **Atomic Catalog Ingestion**: Download and merge vehicle and wheel data from the configured catalogue API with atomic file operations that preserve local custom additions.
 - **Modular Architecture**: Clean cog-based structure with an optional legacy command suite (`ENABLE_LEGACY_COMMANDS`).
@@ -88,7 +87,7 @@ GTA-V-HUB-DBot/
 │   │   ├── __init__.py
 │   │   └── server.py          # aiohttp.web routes: /api/vehicles, /api/wheels, /api/status
 │   ├── cogs/                  # Application command extensions
-│   │   ├── admin.py           # /hubadmin owner suite (sync, reload, status, catalog sync)
+│   │   ├── admin.py           # Administrative services and control panel
 │   │   ├── common.py          # Shared catalog search presentation logic
 │   │   ├── community.py       # /community group (link, profile, stats)
 │   │   ├── general.py         # /help, /ping, /invite, /support
@@ -171,7 +170,7 @@ cp .env.example .env
 
 Open `.env` in your editor and configure your variables:
 - `DISCORD_TOKEN`: Your bot token from the Discord Developer Portal.
-- `OWNER_IDS`: Your numeric Discord user ID (required to access `/hubadmin`).
+- `OWNER_IDS`: Your numeric Discord user ID.
 - `GUILD_ID`: (Optional, recommended during development) Your test server ID for instant slash command registration.
 
 ---
@@ -245,7 +244,7 @@ The following variables can be configured in `.env`:
 | `GUILD_ID` | No | *None* | Target guild ID for instant slash command registration. If unset, commands sync globally. |
 | `CLEAR_GLOBAL_ON_STARTUP` | No | `false` | When `true` and `GUILD_ID` is set, purges global commands on startup to eliminate duplicate slash commands. |
 | `ENABLE_LEGACY_COMMANDS` | No | `true` | Enables legacy starter commands (`/cars`, `/garage`, `/compare`, `/daily`, `/profile`, `/stats`, `/crew`, `/jobs`). |
-| `OWNER_IDS` | No | *None* | Comma-separated list of Discord user IDs authorized to use `/hubadmin` tools. |
+| `OWNER_IDS` | No | *None* | Comma-separated list of authorized Discord user IDs. |
 | `ALLOWED_CHANNEL_ID` | No | `1567917854341472387` | Comma- or semicolon-separated channel IDs where standard bot commands are allowed. Leave empty to allow commands in all channels. |
 | `CATALOGUE_API_BASE_URL` | No | `https://catalogue.placeholder.local` | Base URL of the first-party catalogue API (e.g. `http://127.0.0.1:8080` when self-hosted). |
 | `INVITE_URL` | No | *None* | Bot OAuth2 invite URL displayed by `/invite` and the `/help` menu button. |
@@ -272,8 +271,8 @@ The bot includes built-in channel isolation to prevent spam across general serve
    ```
 2. **Disabling Restriction**: Leave `ALLOWED_CHANNEL_ID=` empty to permit command execution across all server channels.
 3. **Thread Inheritance**: Commands issued inside active threads automatically check against the thread's parent channel ID.
-4. **Owner Exemption**: All commands under the `/hubadmin` command group are exempt from channel restrictions and can be executed from private administrative channels.
-5. **User Feedback**: Non-admin commands executed in an unauthorized channel receive an ephemeral response detailing the approved channel mentions.
+4. **Owner Exemption**: Authorized bot owners are exempt from channel restrictions.
+5. **User Feedback**: Commands executed in an unauthorized channel receive an ephemeral response detailing the approved channel mentions.
 
 ---
 
@@ -333,20 +332,6 @@ Enabled when `ENABLE_LEGACY_COMMANDS=true`:
 | `/stats` | `player: str` | Player statistics lookup (indicates requirement for a permitted external provider). |
 | `/crew` | `crew_id: str` | Queries the Rockstar Social Club crew membership API (best-effort). |
 | `/jobs` | `creator_id: str` | Queries the Rockstar Social Club creator race mission API (best-effort). |
-
-### Owner & Administration (`/hubadmin` & `/9575`)
-
-The Admin section is hidden from the standard public `/help` menu and restricted to user IDs specified in `OWNER_IDS`. Admin commands are allowed in any channel (bypassing channel restrictions):
-
-| Command | Arguments | Description |
-|---|---|---|
-| `/9575` | — | **Secret Admin Trigger**: Opens the interactive GTA V HUB Owner & Admin Control Panel with quick-action buttons. |
-| `/hubadmin panel` | — | Opens the interactive GTA V HUB Owner & Admin Control Panel. |
-| `/hubadmin status` | — | Displays bot uptime, guild count, gateway latency, catalog counts, and recent sync history. |
-| `/hubadmin reload-catalogs` | — | Hot-reloads all local JSON catalogs from disk without restarting the bot process. |
-| `/hubadmin sync` | `mode: Choice[clear-global, guild, global, clear-guild]` | Manages Discord application command tree registration and resolves duplicate commands. |
-| `/hubadmin sync-catalogs` | `catalogue: Choice[all, vehicles, wheels]` | Synchronizes vehicle and wheel catalogues from the configured catalogue API. |
-| `/hubadmin add-vehicle` | `manufacturer: str`, `name: str`, `vehicle_class: str`, `price: int`, `[drivetrain: str]` | Manually appends a vehicle entry to `data/vehicles.json` atomically. |
 
 ---
 
@@ -447,14 +432,14 @@ Catalog data is stored as JSON arrays in `data/`. If a catalog file does not exi
 
 ## Catalogue Synchronization
 
-The `/hubadmin sync-catalogs` command synchronizes catalog data from the configured `CATALOGUE_API_BASE_URL`:
+Catalog data can be synchronized from the configured `CATALOGUE_API_BASE_URL`:
 
 - **Vehicles**: Fetched from `{CATALOGUE_API_BASE_URL}/api/?game=gta5&page={page}`.
 - **Wheels**: Downloaded from `{CATALOGUE_API_BASE_URL}/api/wheels.json`.
 
 ### Provenance, Deduplication & Safety
 - Records imported from the API are tagged with `_catalog_source="first-party"`.
-- Re-running the sync replaces only records previously imported from this source, preserving any manual records created with `/hubadmin add-vehicle` or tagged with `_catalog_source="manual"`.
+- Re-running the sync replaces only records previously imported from this source, preserving custom records tagged with `_catalog_source="manual"`.
 - **Fault-Tolerant Fallback**: If the configured endpoint is unreachable or returns an error, the sync safely aborts and retains existing local catalog files without data loss.
 
 ---
