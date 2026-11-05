@@ -5,7 +5,7 @@
 ![discord.py 2.4+](https://img.shields.io/badge/discord.py-2.4+-5865F2.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A modular, asynchronous Discord companion bot for GTA Online communities and Discord servers. Built with `discord.py` 2.4+, **GTA V HUB** features an asynchronous SQLite persistence layer, typo-tolerant local catalog search, interactive UI menus with custom neon-purple branding, channel-scoped execution controls, and automated dataset synchronization.
+A modular, asynchronous Discord companion bot and first-party catalogue API for GTA Online communities. Built on `discord.py` 2.4+ and `aiohttp`, **GTA V HUB** features an asynchronous SQLite persistence layer, typo-tolerant local catalog search, interactive UI menus styled in custom neon-purple (`#A855F7`), channel-scoped command execution, and a self-hosted catalogue HTTP service.
 
 ---
 
@@ -16,18 +16,23 @@ A modular, asynchronous Discord companion bot for GTA Online communities and Dis
 - [System Architecture](#system-architecture)
 - [Prerequisites](#prerequisites)
 - [Installation & Setup](#installation--setup)
+- [Running the Services](#running-the-services)
+  - [1. Discord Bot Gateway](#1-discord-bot-gateway)
+  - [2. First-Party Catalogue API Server](#2-first-party-catalogue-api-server)
+  - [3. Catalogue Seeding & Sanitation Utility](#3-catalogue-seeding--sanitation-utility)
 - [Command Line Interface (CLI)](#command-line-interface-cli)
 - [Configuration Reference](#configuration-reference)
 - [Channel Restriction & Access Control](#channel-restriction--access-control)
-- [Command Reference](#command-reference)
+- [Discord Command Reference](#discord-command-reference)
   - [General Commands](#general-commands)
   - [Vehicles & Wheels](#vehicles--wheels)
   - [Jobs & Creators](#jobs--creators)
   - [Community, Garage & Economy](#community-garage--economy)
   - [Legacy & Lookups](#legacy--lookups)
   - [Owner & Administration (`/hubadmin`)](#owner--administration-hubadmin)
+- [First-Party Catalogue API Reference](#first-party-catalogue-api-reference)
 - [Catalog Data & Schema](#catalog-data--schema)
-- [Public Catalogue Sync](#public-catalogue-sync)
+- [Catalogue Synchronization](#catalogue-synchronization)
 - [Optional Provider Contracts](#optional-provider-contracts)
 - [Development & Testing](#development--testing)
 - [Contributing](#contributing)
@@ -37,20 +42,21 @@ A modular, asynchronous Discord companion bot for GTA Online communities and Dis
 
 ## Overview
 
-**GTA V HUB** provides Discord communities with tools to search GTA Online vehicles, analyze wheel performance effects, browse community jobs, track personal garages, and claim daily HUB credits.
+**GTA V HUB** provides Discord communities with tools to search GTA Online vehicle specifications, inspect wheel performance handling effects, browse creator jobs, manage personal garages, and claim daily HUB credits.
 
-All core catalog searches operate against local JSON datasets stored in `data/`, ensuring fast response times without mandatory third-party API dependencies. Server owners can populate datasets manually or import public catalog records via built-in sync tools.
+All bot catalog searches query local, atomic JSON datasets stored in `data/`, guaranteeing sub-millisecond response times without depending on external uptime. The repository includes an integrated first-party HTTP API server (`server.py`) to serve catalogue data directly, allowing server operators to run a self-hosted catalogue ecosystem without external third-party dependencies.
 
 ---
 
 ## Key Features
 
-- **Typo-Tolerant Catalog Search**: High-performance search powered by `difflib.SequenceMatcher` with exact-match and prefix boosts across vehicles, wheels, jobs, and creators.
+- **Typo-Tolerant Catalog Search**: Fast search powered by `difflib.SequenceMatcher` with exact-match and prefix boosts across vehicles, wheels, jobs, and creators.
 - **Interactive Discord UI**: Embeds styled in a custom neon-purple theme (`#A855F7`) featuring interactive select menus, dynamic category navigation, and external URL buttons.
 - **Persistent Garage & Community System**: Asynchronous SQLite storage (using `aiosqlite` in WAL mode) for personal player garages, linked Rockstar Social Club profiles, and daily reward streaks.
+- **First-Party Catalogue API Server**: A standalone `aiohttp.web` REST server (`server.py`) serving vehicle endpoints (with pagination, sorting, and filtering), wheel specifications, and health metrics.
 - **Channel Scoping & Thread Awareness**: Enforce bot interactions to designated channels (`ALLOWED_CHANNEL_ID`) with automatic ephemeral redirects and thread parent detection. Owner administration commands automatically bypass restrictions.
 - **Slash Command Management**: Built-in CLI flags and owner commands to resolve duplicate command registrations and manage global vs. guild command tree propagation.
-- **Atomic Catalog Ingestion**: Download and merge vehicle and wheel data from public endpoints (`gtacars.net` API and GTALens reference dataset) with atomic file operations that preserve local custom additions.
+- **Atomic Catalog Ingestion**: Download and merge vehicle and wheel data from the configured catalogue API with atomic file operations that preserve local custom additions.
 - **Modular Architecture**: Clean cog-based structure with an optional legacy command suite (`ENABLE_LEGACY_COMMANDS`).
 
 ---
@@ -60,7 +66,8 @@ All core catalog searches operate against local JSON datasets stored in `data/`,
 ```
 GTA-V-HUB-DBot/
 ├── bot.py                     # Entrypoint: GtaHubBot class, CLI options, command error handlers
-├── requirements.txt           # Production dependencies
+├── server.py                  # CLI entrypoint: First-party Catalogue API server
+├── requirements.txt           # Production dependencies (discord.py, aiosqlite, aiohttp, python-dotenv)
 ├── .env.example               # Environment configuration template
 ├── LICENSE                    # MIT License
 ├── README.md                  # Project documentation
@@ -77,6 +84,9 @@ GTA-V-HUB-DBot/
 │   ├── config.py              # Strongly-typed Settings dataclass loaded from .env
 │   ├── database.py            # aiosqlite manager, schema definitions, migrations, queries
 │   ├── views.py               # Discord UI Components (HelpView, CatalogResultsView)
+│   ├── api/                   # First-party catalogue HTTP API
+│   │   ├── __init__.py
+│   │   └── server.py          # aiohttp.web routes: /api/vehicles, /api/wheels, /api/status
 │   ├── cogs/                  # Application command extensions
 │   │   ├── admin.py           # /hubadmin owner suite (sync, reload, status, catalog sync)
 │   │   ├── common.py          # Shared catalog search presentation logic
@@ -88,9 +98,12 @@ GTA-V-HUB-DBot/
 │   │   ├── weather.py         # /weather command group
 │   │   └── wheels.py          # /wheel command group
 │   └── services/              # External service adapters
-│       ├── catalog_sync.py    # Public dataset sync (gtacars.net & GTALens reference)
+│       ├── catalog_sync.py    # First-party catalogue sync service via CATALOGUE_API_BASE_URL
 │       └── gta.py             # Legacy GTA service, vehicle search/autocomplete, Rockstar API
-└── tests/                     # Automated unit test suite (49 tests)
+├── scripts/                   # Operational utilities
+│   └── seed_catalogue.py      # Sanitizes & standardizes local JSON catalogs under first-party schema
+└── tests/                     # Automated unit test suite (62 tests)
+    ├── test_api_server.py     # Endpoints, pagination, sorting, and formatting tests
     ├── test_catalog.py        # CatalogStore loading, ranking, and atomic persistence
     ├── test_catalog_sync.py   # Data normalization and source-merging tests
     ├── test_channel_restriction.py # Channel gating and bypass tests
@@ -144,7 +157,7 @@ pip install -r requirements.txt
 
 ### 4. Configure Environment Variables
 
-Copy the example configuration file and update it with your credentials:
+Copy the example configuration file:
 
 **Windows PowerShell:**
 ```powershell
@@ -156,22 +169,55 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-Open `.env` in your text editor and set:
-- `DISCORD_TOKEN`: Your bot token.
+Open `.env` in your editor and configure your variables:
+- `DISCORD_TOKEN`: Your bot token from the Discord Developer Portal.
 - `OWNER_IDS`: Your numeric Discord user ID (required to access `/hubadmin`).
-- `GUILD_ID`: (Recommended for development) Your test server ID for instant command registration.
+- `GUILD_ID`: (Optional, recommended during development) Your test server ID for instant slash command registration.
 
-### 5. Launch the Bot
+---
+
+## Running the Services
+
+### 1. Discord Bot Gateway
+
+Run the Discord bot daemon:
 
 ```bash
 python bot.py
 ```
 
+### 2. First-Party Catalogue API Server
+
+GTA V HUB ships with a self-hosted HTTP API server that serves catalogue records for vehicles and wheels:
+
+```bash
+# Start API server on default host (127.0.0.1) and port (8080)
+python server.py
+
+# Custom host and port
+python server.py --host 0.0.0.0 --port 8080 --data-dir data
+```
+
+When self-hosting the catalogue API, set the base URL in your `.env`:
+```env
+CATALOGUE_API_BASE_URL=http://127.0.0.1:8080
+```
+
+### 3. Catalogue Seeding & Sanitation Utility
+
+To sanitize and standardize raw or imported JSON catalogue files under the project's own schema:
+
+```bash
+python scripts/seed_catalogue.py --data-dir data --base-url http://127.0.0.1:8080
+```
+
+This cleans external links, standardizes numeric values (speeds, lap times, prices), and tags records with `_catalog_source="first-party"`.
+
 ---
 
 ## Command Line Interface (CLI)
 
-`bot.py` provides command-line flags to manage Discord slash command registration and resolve duplicate command issues without starting the gateway connection:
+`bot.py` provides flags to manage Discord slash command registration and resolve duplicate command issues without starting the gateway connection:
 
 ```bash
 # Clear all global slash commands (resolves duplicate command issues in guilds)
@@ -196,14 +242,15 @@ The following variables can be configured in `.env`:
 | Variable | Required | Default | Description |
 |---|:---:|:---:|---|
 | `DISCORD_TOKEN` | **Yes** | — | Bot token from the Discord Developer Portal. |
-| `GUILD_ID` | No | *None* | Target guild ID for instant slash command registration during development. If unset, commands sync globally. |
+| `GUILD_ID` | No | *None* | Target guild ID for instant slash command registration. If unset, commands sync globally. |
 | `CLEAR_GLOBAL_ON_STARTUP` | No | `false` | When `true` and `GUILD_ID` is set, purges global commands on startup to eliminate duplicate slash commands. |
-| `ENABLE_LEGACY_COMMANDS` | No | `true` | Enables legacy/starter commands (`/cars`, `/garage`, `/compare`, `/daily`, `/profile`, `/stats`, `/crew`, `/jobs`). |
+| `ENABLE_LEGACY_COMMANDS` | No | `true` | Enables legacy starter commands (`/cars`, `/garage`, `/compare`, `/daily`, `/profile`, `/stats`, `/crew`, `/jobs`). |
 | `OWNER_IDS` | No | *None* | Comma-separated list of Discord user IDs authorized to use `/hubadmin` tools. |
 | `ALLOWED_CHANNEL_ID` | No | `1567917854341472387` | Comma- or semicolon-separated channel IDs where standard bot commands are allowed. Leave empty to allow commands in all channels. |
+| `CATALOGUE_API_BASE_URL` | No | `https://catalogue.placeholder.local` | Base URL of the first-party catalogue API (e.g. `http://127.0.0.1:8080` when self-hosted). |
 | `INVITE_URL` | No | *None* | Bot OAuth2 invite URL displayed by `/invite` and the `/help` menu button. |
 | `SUPPORT_URL` | No | *None* | Support server invite URL or website displayed by `/support` and `/help`. |
-| `DONATE_URL` | No | *None* | Optional developer support/donation link displayed by `/support` and `/help`. |
+| `DONATE_URL` | No | *None* | Developer support/donation link displayed by `/support` and `/help`. |
 | `DATA_DIR` | No | `data` | Directory containing JSON catalogs and database storage. |
 | `DATABASE_PATH` | No | `data/gtavhub.sqlite3` | File path for the SQLite database. |
 | `GTA_HUB_WEATHER_API_URL` | No | *None* | Optional HTTPS JSON endpoint for live GTA Online weather data. |
@@ -230,7 +277,7 @@ The bot includes built-in channel isolation to prevent spam across general serve
 
 ---
 
-## Command Reference
+## Discord Command Reference
 
 ### General Commands
 
@@ -296,8 +343,23 @@ Restricted to user IDs specified in `OWNER_IDS`. Allowed in any channel:
 | `/hubadmin status` | — | Displays bot uptime, guild count, gateway latency, catalog counts, and recent sync history. |
 | `/hubadmin reload-catalogs` | — | Hot-reloads all local JSON catalogs from disk without restarting the bot process. |
 | `/hubadmin sync` | `mode: Choice[clear-global, guild, global, clear-guild]` | Manages Discord application command tree registration and resolves duplicate commands. |
-| `/hubadmin sync-catalogs` | `catalogue: Choice[all, vehicles, wheels]` | Imports public datasets from GTACars API and the GTALens wheel reference. |
+| `/hubadmin sync-catalogs` | `catalogue: Choice[all, vehicles, wheels]` | Synchronizes vehicle and wheel catalogues from the configured catalogue API. |
 | `/hubadmin add-vehicle` | `manufacturer: str`, `name: str`, `vehicle_class: str`, `price: int`, `[drivetrain: str]` | Manually appends a vehicle entry to `data/vehicles.json` atomically. |
+
+---
+
+## First-Party Catalogue API Reference
+
+When running `server.py`, the following HTTP endpoints are provided:
+
+| Method | Endpoint | Query Parameters | Description |
+|---|---|---|---|
+| `GET` | `/api/status` | — | Health check and catalog record totals. |
+| `GET` | `/api/health` | — | Alias for `/api/status`. |
+| `GET` | `/api/vehicles` | `page`, `perPage`, `sort`, `sortReverse`, `q`, `class`, `manufacturer` | Paginated vehicle catalog. Supported sort keys: `alphabet`, `price`, `manufacturer`, `class`, `top_speed`, `lap_time`. |
+| `GET` | `/api/vehicles/{id}` | — | Single vehicle details by ID or name slug. |
+| `GET` | `/api/wheels` | `format` (`list` or object) | Full wheel catalog with physics handling effects. |
+| `GET` | `/api/wheels.json` | — | Alias for `/api/wheels`. |
 
 ---
 
@@ -309,6 +371,7 @@ Catalog data is stored as JSON arrays in `data/`. If a catalog file does not exi
 ```json
 [
   {
+    "id": "t20",
     "name": "T20",
     "manufacturer": "Progen",
     "class": "Super",
@@ -318,9 +381,8 @@ Catalog data is stored as JSON arrays in `data/`. If a catalog file does not exi
     "top_speed": 122.25,
     "lap_time": 61.89,
     "seats": 2,
-    "url": "https://gtacars.net/gta5/t20",
-    "image_url": "https://example.com/t20.png",
-    "_catalog_source": "gtacars"
+    "url": "/vehicles/t20",
+    "_catalog_source": "first-party"
   }
 ]
 ```
@@ -337,7 +399,13 @@ Catalog data is stored as JSON arrays in `data/`. If a catalog file does not exi
     "anti_roll": "+",
     "slip_angle": "-",
     "description": "Increases rear traction bias while stabilizing corner exit.",
-    "_catalog_source": "gtalens-wheel-reference"
+    "wheel_effects": {
+      "bias": "rear",
+      "slip_angle": "-",
+      "anti_roll": "+",
+      "note": "Increases rear traction bias while stabilizing corner exit."
+    },
+    "_catalog_source": "first-party"
   }
 ]
 ```
@@ -364,7 +432,7 @@ Catalog data is stored as JSON arrays in `data/`. If a catalog file does not exi
     "url": "https://socialclub.rockstargames.com/member/TrackMaster",
     "playlists": [
       {
-        "name": "Stunt Series 2026",
+        "name": "Stunt Series",
         "url": "https://socialclub.rockstargames.com/games/gtav/pc/playlists/playlist/example"
       }
     ]
@@ -374,17 +442,17 @@ Catalog data is stored as JSON arrays in `data/`. If a catalog file does not exi
 
 ---
 
-## Public Catalogue Sync
+## Catalogue Synchronization
 
-The `/hubadmin sync-catalogs` command provides manual ingestion from public endpoints:
+The `/hubadmin sync-catalogs` command synchronizes catalog data from the configured `CATALOGUE_API_BASE_URL`:
 
-- **Vehicles**: Fetched from the public GTACars paginated API (`gtacars.net`). Ingestion runs with a 0.75-second rate-limiting delay between pages.
-- **Wheels**: Downloaded from the public GTALens reference repository (`wheels.json`).
+- **Vehicles**: Fetched from `{CATALOGUE_API_BASE_URL}/api/?game=gta5&page={page}`.
+- **Wheels**: Downloaded from `{CATALOGUE_API_BASE_URL}/api/wheels.json`.
 
-### Provenance & Deduplication
-- Records imported from public providers are tagged with `_catalog_source`.
-- Re-running the sync replaces only records previously imported from that specific provider, preserving any custom or manual records created with `/hubadmin add-vehicle` or labeled with `_catalog_source="manual"`.
-- Sync runs with a descriptive `User-Agent` header and does not employ proxy rotation, credential harvesting, or scraping bypasses.
+### Provenance, Deduplication & Safety
+- Records imported from the API are tagged with `_catalog_source="first-party"`.
+- Re-running the sync replaces only records previously imported from this source, preserving any manual records created with `/hubadmin add-vehicle` or tagged with `_catalog_source="manual"`.
+- **Fault-Tolerant Fallback**: If the configured endpoint is unreachable or returns an error, the sync safely aborts and retains existing local catalog files without data loss.
 
 ---
 
@@ -428,7 +496,7 @@ The bot sends an HTTP GET request with a `url` query parameter containing the Ro
 
 ### Running Tests
 
-The test suite contains 49 automated unit tests verifying catalog operations, sync adapters, channel restrictions, command tree synchronization, and autocomplete handlers.
+The test suite contains 62 automated unit tests verifying API endpoints, catalog operations, sync adapters, channel restrictions, command tree synchronization, and autocomplete handlers.
 
 Run using Python's built-in `unittest`:
 ```bash
@@ -444,12 +512,12 @@ python -m pytest
 
 Verify that all modules compile cleanly:
 ```bash
-python -m compileall -q bot.py gta_hub tests
+python -m compileall -q bot.py server.py gta_hub scripts tests
 ```
 
 ### Continuous Integration (CI)
 
-A GitHub Actions workflow is located at `.github/workflows/ci.yml`. It runs automatically on every push and pull request against Python 3.12, executing dependency installation, the unit test suite, and syntax verification.
+A GitHub Actions workflow is located at `.github/workflows/ci.yml`. It runs automatically on every push and pull request with Python 3.12, executing dependency installation, the unit test suite, and syntax verification.
 
 ---
 
@@ -463,10 +531,10 @@ Contributions to GTA V HUB are welcome. Please follow these steps:
    git checkout -b feature/my-new-feature
    ```
 3. **Commit Your Changes**: Follow clear and concise commit conventions.
-4. **Run the Test Suite**: Ensure all 49 tests pass and add new tests for your feature:
+4. **Run the Test Suite**: Ensure all 62 tests pass and add new tests for your feature:
    ```bash
    python -m unittest discover -s tests -v
-   python -m compileall -q bot.py gta_hub tests
+   python -m compileall -q bot.py server.py gta_hub scripts tests
    ```
 5. **Open a Pull Request**: Provide a detailed description of your changes and reference any related issues.
 
