@@ -43,7 +43,9 @@ def format_vehicle_for_api(raw: dict[str, Any], base_url: str = "") -> dict[str,
         manufacturer = manufacturer[1:]
     vehicle_class = str(raw.get("class") or raw.get("_class") or raw.get("vehicle_class") or "Unknown").strip()
 
-    raw_price = raw.get("price") if raw.get("price") is not None else raw.get("_priceMp")
+    raw_price = raw.get("price")
+    if raw_price is None:
+        raw_price = raw.get("_priceMp")
     num_price = _number(raw_price)
     if num_price is not None and "_priceMp" in raw and "price" not in raw:
         price_int: int | None = int(num_price * 1000)
@@ -52,14 +54,18 @@ def format_vehicle_for_api(raw: dict[str, Any], base_url: str = "") -> dict[str,
     else:
         price_int = None
 
-    raw_lap = raw.get("lap_time") if raw.get("lap_time") is not None else raw.get("_lapTime")
+    raw_lap = raw.get("lap_time")
+    if raw_lap is None:
+        raw_lap = raw.get("_lapTime")
     lap_num = _number(raw_lap)
     if lap_num is not None and lap_num > 1000:
         lap_sec: float | None = lap_num / 1000.0
     else:
         lap_sec = lap_num
 
-    raw_speed = raw.get("top_speed") if raw.get("top_speed") is not None else raw.get("_topSpeed")
+    raw_speed = raw.get("top_speed")
+    if raw_speed is None:
+        raw_speed = raw.get("_topSpeed")
     top_spd = _number(raw_speed)
 
     drivetrain = str(raw.get("drivetrain") or raw.get("_dt") or "Unknown").upper()
@@ -144,7 +150,7 @@ class CatalogueApiController:
     def __init__(self, data_dir: Path, base_url: str = ""):
         self.data_dir = Path(data_dir)
         self.base_url = base_url.rstrip("/")
-        self._vehicles_cache: tuple[float, list[dict[str, Any]], list[dict[str, Any]]] | None = None
+        self._vehicles_cache: tuple[float, list[dict[str, Any]], list[dict[str, Any]], dict[str, dict[str, Any]]] | None = None
         self._wheels_cache: tuple[float, Any, dict[str, Any]] | None = None
 
     def _get_mtime(self, filename: str) -> float:
@@ -181,12 +187,27 @@ class CatalogueApiController:
             if (item := format_vehicle_for_api(raw_item, self.base_url)) is not None
             and item.get("name")
         ]
-        self._vehicles_cache = (mtime, raw_list, formatted)
+        slug_map: dict[str, dict[str, Any]] = {}
+        for item in formatted:
+            slug_key = str(item.get("id", "")).casefold()
+            name_key = str(item.get("name", "")).casefold()
+            if slug_key:
+                slug_map[slug_key] = item
+            if name_key and name_key not in slug_map:
+                slug_map[name_key] = item
+
+        self._vehicles_cache = (mtime, raw_list, formatted, slug_map)
         return raw_list
 
     def get_formatted_vehicles(self) -> list[dict[str, Any]]:
         self.get_raw_vehicles()
         return self._vehicles_cache[2] if self._vehicles_cache else []
+
+    def get_vehicle_by_slug(self, slug: str) -> dict[str, Any] | None:
+        self.get_raw_vehicles()
+        if not self._vehicles_cache:
+            return None
+        return self._vehicles_cache[3].get(slug.casefold())
 
     def get_raw_wheels(self) -> Any:
         mtime = self._get_mtime("wheels.json")
@@ -283,10 +304,10 @@ class CatalogueApiController:
         })
 
     async def handle_vehicle_detail(self, request: web.Request) -> web.Response:
-        slug = request.match_info.get("id", "").strip().casefold()
-        for v in self.get_formatted_vehicles():
-            if v["id"].casefold() == slug or v["name"].casefold() == slug:
-                return web.json_response({"status": True, "payload": v})
+        slug = request.match_info.get("id", "").strip()
+        vehicle = self.get_vehicle_by_slug(slug)
+        if vehicle is not None:
+            return web.json_response({"status": True, "payload": vehicle})
         return web.json_response({"status": False, "error": "Vehicle not found"}, status=404)
 
     async def handle_wheels(self, request: web.Request) -> web.Response:

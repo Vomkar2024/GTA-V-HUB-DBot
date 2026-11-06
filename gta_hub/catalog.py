@@ -17,6 +17,8 @@ CATALOG_FILES: dict[str, str] = {
     "creators": "creators.json",
 }
 
+_SEARCHABLE_FIELDS = ("manufacturer", "creator", "class", "type", "platform")
+
 
 class CatalogError(RuntimeError):
     """Raised when a catalog file cannot be read or validated."""
@@ -64,17 +66,17 @@ class CatalogStore:
             raise KeyError(f"Unknown catalog: {kind}")
 
         scored: list[tuple[float, int, dict[str, Any]]] = []
+        matcher = SequenceMatcher(None, needle, "")
         for index, row in enumerate(rows):
             name = _display_name(row).casefold()
-            searchable_fields = ("manufacturer", "creator", "class", "type", "platform")
-            extras = " ".join(str(row.get(field, "")) for field in searchable_fields)
+            extras = " ".join(str(row.get(field, "")) for field in _SEARCHABLE_FIELDS)
             haystack = f"{name} {extras}".casefold().strip()
             if needle == name:
                 score = 3.0
             elif needle in haystack:
                 score = 2.0 + len(needle) / max(len(haystack), 1)
             else:
-                matcher = SequenceMatcher(None, needle, haystack)
+                matcher.set_seq2(haystack)
                 if matcher.real_quick_ratio() < 0.34 or matcher.quick_ratio() < 0.34:
                     continue
                 score = matcher.ratio()

@@ -65,9 +65,13 @@ def normalize_vehicle(raw: dict[str, Any], base_url: str = "") -> dict[str, Any]
     if not isinstance(name, str) or not name.strip():
         return None
     class_code = raw.get("class") or raw.get("_class")
-    raw_price = raw.get("price") if raw.get("price") is not None else raw.get("_priceMp")
+    raw_price = raw.get("price")
+    if raw_price is None:
+        raw_price = raw.get("_priceMp")
     price = _number(raw_price)
-    raw_lap = raw.get("lap_time") if raw.get("lap_time") is not None else raw.get("_lapTime")
+    raw_lap = raw.get("lap_time")
+    if raw_lap is None:
+        raw_lap = raw.get("_lapTime")
     lap_ms = _number(raw_lap)
     vehicle_id = str(raw.get("id") or raw.get("slug") or "")
 

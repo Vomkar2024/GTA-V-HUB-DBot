@@ -20,6 +20,7 @@ A modular, asynchronous Discord companion bot and first-party catalogue API for 
   - [1. Discord Bot Gateway](#1-discord-bot-gateway)
   - [2. First-Party Catalogue API Server](#2-first-party-catalogue-api-server)
   - [3. Catalogue Seeding & Sanitation Utility](#3-catalogue-seeding--sanitation-utility)
+  - [4. Vehicle Image Upscaling Utility](#4-vehicle-image-upscaling-utility)
 - [Command Line Interface (CLI)](#command-line-interface-cli)
 - [Configuration Reference](#configuration-reference)
 - [Channel Restriction & Access Control](#channel-restriction--access-control)
@@ -215,6 +216,14 @@ python scripts/seed_catalogue.py --data-dir data --base-url http://127.0.0.1:808
 ```
 
 This cleans external links, standardizes numeric values (speeds, lap times, prices), and tags records with `_catalog_source="first-party"`.
+
+### 4. Vehicle Image Upscaling Utility
+
+To batch-process and upscale local vehicle artwork to 4K resolution using Lanczos resampling (requires `Pillow`):
+
+```bash
+python scripts/upgrade_images_4k.py assets/images
+```
 
 ---
 
@@ -505,6 +514,13 @@ python -m pytest
 Verify that all modules compile cleanly:
 ```bash
 python -m compileall -q bot.py server.py gta_hub scripts tests
+```
+
+### Linting & Code Quality
+
+Check codebase formatting and linting:
+```bash
+ruff check .
 ```
 
 ### Continuous Integration (CI)

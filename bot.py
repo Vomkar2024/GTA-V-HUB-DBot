@@ -6,12 +6,8 @@ import logging
 import sys
 
 import discord
+from discord import app_commands
 from discord.ext import commands
-
-try:
-    from discord import app_commands
-except ImportError:  # pragma: no cover
-    app_commands = None  # type: ignore
 
 from gta_hub.branding import make_embed
 from gta_hub.catalog import CatalogStore
@@ -32,12 +28,8 @@ EXTENSIONS = (
 )
 
 
-if app_commands is not None:
-    class ChannelRestrictedError(app_commands.CheckFailure):
-        """Raised when an interaction occurs in a disallowed channel."""
-else:  # pragma: no cover
-    class ChannelRestrictedError(Exception):  # type: ignore
-        pass
+class ChannelRestrictedError(app_commands.CheckFailure):
+    """Raised when an interaction occurs in a disallowed channel."""
 
 
 class GtaHubBot(commands.Bot):
@@ -52,11 +44,8 @@ class GtaHubBot(commands.Bot):
         self._hub_settings = value
 
     def __init__(self, settings: Settings):
-        if hasattr(discord, "Intents"):
-            intents = discord.Intents.default()
-            super().__init__(command_prefix=commands.when_mentioned, intents=intents, help_command=None)
-        else:  # pragma: no cover
-            super().__init__(command_prefix=commands.when_mentioned, help_command=None)
+        intents = discord.Intents.default()
+        super().__init__(command_prefix=commands.when_mentioned, intents=intents, help_command=None)
         self.settings = settings
         self.catalog = CatalogStore(settings.data_dir)
         self.db = Database(str(settings.database_path))
@@ -116,16 +105,15 @@ class GtaHubBot(commands.Bot):
         if hasattr(self, "tree") and self.tree is not None:
             self.tree.interaction_check = self.check_interaction_allowed
 
-            if app_commands is not None:
-                @self.tree.error
-                async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
-                    if isinstance(error, (ChannelRestrictedError, app_commands.CheckFailure)):
-                        if hasattr(interaction, "response") and not interaction.response.is_done():
-                            await interaction.response.send_message(
-                                embed=self._channel_restricted_embed(), ephemeral=True
-                            )
-                        return
-                    logging.getLogger("gta_v_hub").error("Unhandled command error: %s", error, exc_info=error)
+            @self.tree.error
+            async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+                if isinstance(error, (ChannelRestrictedError, app_commands.CheckFailure)):
+                    if hasattr(interaction, "response") and not interaction.response.is_done():
+                        await interaction.response.send_message(
+                            embed=self._channel_restricted_embed(), ephemeral=True
+                        )
+                    return
+                logging.getLogger("gta_v_hub").error("Unhandled command error: %s", error, exc_info=error)
 
         @self.check
         async def global_prefix_check(ctx: commands.Context) -> bool:

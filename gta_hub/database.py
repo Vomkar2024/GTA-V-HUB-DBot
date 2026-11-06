@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import math
-import os
 from pathlib import Path
 import random
 from typing import Any
@@ -19,7 +18,7 @@ class Database:
         self._claim_lock = asyncio.Lock()
 
     async def initialize(self) -> None:
-        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = await aiosqlite.connect(self.path)
         await self.conn.executescript(
             """
@@ -149,7 +148,7 @@ class Database:
 
                 reward = random.randint(100, 250)
                 days_since_last = (
-                    (now.date() - datetime.fromisoformat(row[0]).date()).days if row else 0
+                    (now.date() - date.fromisoformat(row[0])).days if row else 0
                 )
                 streak = row[1] + 1 if row and days_since_last == 1 else 1
                 total = (row[2] if row else 0) + reward

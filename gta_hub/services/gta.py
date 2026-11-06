@@ -17,6 +17,7 @@ class GTAService:
         self._manufacturers: list[str] = []
         self._classes: list[str] = []
         self._name_map: dict[str, dict[str, Any]] = {}
+        self._search_index: list[tuple[str, str, str, str, dict[str, Any]]] = []
         self.reload_vehicles()
 
     def reload_vehicles(self) -> int:
@@ -32,30 +33,34 @@ class GTAService:
         self._manufacturers = []
         self._classes = []
         self._name_map = {}
+        self._search_index = []
 
         for vehicle in self.vehicles:
             name = str(vehicle.get("name", "")).strip()
+            cf_name = name.casefold() if name else ""
             if name:
-                cf = name.casefold()
-                if cf not in name_seen:
-                    name_seen.add(cf)
+                if cf_name not in name_seen:
+                    name_seen.add(cf_name)
                     self._names.append(name)
-                if cf not in self._name_map:
-                    self._name_map[cf] = vehicle
+                if cf_name not in self._name_map:
+                    self._name_map[cf_name] = vehicle
 
             make = str(vehicle.get("manufacturer", "")).strip()
+            cf_make = make.casefold() if make else ""
             if make:
-                cf_make = make.casefold()
                 if cf_make not in mfg_seen:
                     mfg_seen.add(cf_make)
                     self._manufacturers.append(make)
 
             cls = str(vehicle.get("vehicle_class", vehicle.get("class", ""))).strip()
+            cf_cls = cls.casefold() if cls else ""
             if cls:
-                cf_cls = cls.casefold()
                 if cf_cls not in cls_seen:
                     cls_seen.add(cf_cls)
                     self._classes.append(cls)
+
+            searchable = f"{name} {make} {cls}".casefold()
+            self._search_index.append((cf_name, cf_make, cf_cls, searchable, vehicle))
 
     def _load_vehicles(self) -> list[dict[str, Any]]:
         if not self.data_file.exists():
@@ -75,16 +80,10 @@ class GTAService:
         if not query:
             return []
         ranked: list[tuple[int, str, dict[str, Any]]] = []
-        for vehicle in self.vehicles:
-            name = str(vehicle.get("name", ""))
-            searchable = " ".join([
-                name,
-                str(vehicle.get("manufacturer", "")),
-                str(vehicle.get("vehicle_class", vehicle.get("class", ""))),
-            ]).casefold()
+        for name_lower, _, _, searchable, vehicle in self._search_index:
             if query in searchable:
-                score = 0 if name.casefold() == query else 1 if name.casefold().startswith(query) else 2
-                ranked.append((score, name.casefold(), vehicle))
+                score = 0 if name_lower == query else 1 if name_lower.startswith(query) else 2
+                ranked.append((score, name_lower, vehicle))
         ranked.sort(key=lambda item: (item[0], item[1]))
         return [item[2] for item in ranked[:limit]]
 
@@ -93,9 +92,7 @@ class GTAService:
         if not query:
             return []
         ranked: list[tuple[int, str, dict[str, Any]]] = []
-        for vehicle in self.vehicles:
-            name = str(vehicle.get("name", "")).strip()
-            name_lower = name.casefold()
+        for name_lower, _, _, _, vehicle in self._search_index:
             if query in name_lower:
                 score = 0 if name_lower == query else 1 if name_lower.startswith(query) else 2
                 ranked.append((score, name_lower, vehicle))
@@ -107,10 +104,7 @@ class GTAService:
         if not query:
             return []
         ranked: list[tuple[int, str, dict[str, Any]]] = []
-        for vehicle in self.vehicles:
-            make = str(vehicle.get("manufacturer", "")).strip()
-            make_lower = make.casefold()
-            name_lower = str(vehicle.get("name", "")).strip().casefold()
+        for name_lower, make_lower, _, _, vehicle in self._search_index:
             if query in make_lower:
                 score = 0 if make_lower == query else 1 if make_lower.startswith(query) else 2
                 ranked.append((score, name_lower, vehicle))
@@ -122,12 +116,9 @@ class GTAService:
         if not query:
             return []
         ranked: list[tuple[int, str, dict[str, Any]]] = []
-        for vehicle in self.vehicles:
-            cls = str(vehicle.get("vehicle_class", vehicle.get("class", ""))).strip()
-            cls_lower = cls.casefold()
-            name_lower = str(vehicle.get("name", "")).strip().casefold()
-            if query in cls_lower:
-                score = 0 if cls_lower == query else 1 if cls_lower.startswith(query) else 2
+        for name_lower, _, class_lower, _, vehicle in self._search_index:
+            if query in class_lower:
+                score = 0 if class_lower == query else 1 if class_lower.startswith(query) else 2
                 ranked.append((score, name_lower, vehicle))
         ranked.sort(key=lambda item: (item[0], item[1]))
         return [item[2] for item in ranked[:limit]]

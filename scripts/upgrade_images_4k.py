@@ -7,7 +7,10 @@ import sys
 import time
 from pathlib import Path
 
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover
+    Image = None  # type: ignore
 
 TARGET_DIMENSION = 3840
 
@@ -39,6 +42,10 @@ def process_image(image_path: Path) -> tuple[str, bool, tuple[int, int], str]:
 
 
 def upgrade_all_images(assets_dir: Path | str = "assets/images") -> None:
+    if Image is None:
+        print("Error: The Pillow package is required for upgrade_images_4k.py. Install it with: pip install Pillow")
+        sys.exit(1)
+
     base_dir = Path(assets_dir)
     if not base_dir.is_dir():
         print(f"Error: Directory '{base_dir}' does not exist.")

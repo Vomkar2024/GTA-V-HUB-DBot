@@ -121,7 +121,6 @@ class AdminPanelView(discord.ui.View):
         await interaction.response.send_message(embed=make_embed("Catalogs Reloaded", summary), ephemeral=True)
 
 
-
 class HelpSelect(discord.ui.Select):
     def __init__(self) -> None:
         options = [
@@ -204,12 +203,19 @@ ROMAN_NUMERALS: dict[str, str] = {
     "i": "1",
 }
 
+_RE_NON_ALPHANUMERIC = re.compile(r"[^a-z0-9]")
+_RE_NON_ALPHANUMERIC_SLUG = re.compile(r"[^a-z0-9]+")
+_RE_SAFE_SLUG = re.compile(r"[^a-z0-9_]+")
+_RE_PARENTHETICAL = re.compile(r"\(.*?\)")
+
 _IMAGE_INDEX_CACHE: dict[Path, dict[str, Path]] = {}
+_IMAGE_RESOLVE_CACHE: dict[tuple[Path, str, str, str, str, str], Path | None] = {}
 
 
 def clear_image_cache() -> None:
-    """Clear the cached asset image index."""
+    """Clear the cached asset image index and vehicle resolution cache."""
     _IMAGE_INDEX_CACHE.clear()
+    _IMAGE_RESOLVE_CACHE.clear()
 
 
 def _get_image_index(base_dir: Path) -> dict[str, Path]:
@@ -247,19 +253,30 @@ def resolve_vehicle_image(row: dict[str, Any], assets_dir: Path | str | None = N
         if not base_dir.is_dir():
             return None
 
-    img_index = _get_image_index(base_dir)
+    try:
+        resolved_base = base_dir.resolve()
+    except OSError:
+        resolved_base = base_dir
 
-    # Check direct image_url if provided
     direct_img = str(row.get("image_url") or "").strip()
-    if direct_img:
-        cand_name = Path(direct_img).name.lower()
-        if cand_name in img_index:
-            return img_index[cand_name]
-
     name = str(row.get("name") or "").strip().lower()
     model = str(row.get("model") or "").strip().lower()
     vid = str(row.get("id") or "").strip().lower()
     manuf = str(row.get("manufacturer") or "").strip().lower()
+
+    cache_key = (resolved_base, direct_img, name, model, vid, manuf)
+    if cache_key in _IMAGE_RESOLVE_CACHE:
+        return _IMAGE_RESOLVE_CACHE[cache_key]
+
+    img_index = _get_image_index(resolved_base)
+
+    # Check direct image_url if provided
+    if direct_img:
+        cand_name = Path(direct_img).name.lower()
+        if cand_name in img_index:
+            result = img_index[cand_name]
+            _IMAGE_RESOLVE_CACHE[cache_key] = result
+            return result
 
     candidates: list[str] = []
 
@@ -268,7 +285,7 @@ def resolve_vehicle_image(row: dict[str, Any], assets_dir: Path | str | None = N
         if not token:
             continue
         candidates.append(f"{token}.png")
-        clean_tok = re.sub(r"[^a-z0-9]", "", token)
+        clean_tok = _RE_NON_ALPHANUMERIC.sub("", token)
         if clean_tok:
             candidates.append(f"{clean_tok}.png")
 
@@ -284,7 +301,7 @@ def resolve_vehicle_image(row: dict[str, Any], assets_dir: Path | str | None = N
             name_variants.append(name_converted)
 
         # Strip parentheticals (e.g. "daemon (custom)" -> "daemon")
-        no_paren = re.sub(r"\(.*?\)", "", name).strip()
+        no_paren = _RE_PARENTHETICAL.sub("", name).strip()
         if no_paren and no_paren != name:
             name_variants.append(no_paren)
             words_np = no_paren.split()
@@ -293,20 +310,20 @@ def resolve_vehicle_image(row: dict[str, Any], assets_dir: Path | str | None = N
                 name_variants.append(conv_np)
 
         for n in name_variants:
-            clean_name = re.sub(r"[^a-z0-9]+", "-", n).strip("-")
+            clean_name = _RE_NON_ALPHANUMERIC_SLUG.sub("-", n).strip("-")
             if clean_name:
                 candidates.append(f"{clean_name}.png")
-            clean_name_num = re.sub(r"[^a-z0-9]", "", n)
+            clean_name_num = _RE_NON_ALPHANUMERIC.sub("", n)
             if clean_name_num:
                 candidates.append(f"{clean_name_num}.png")
 
             # Strip manufacturer prefix (e.g. "Albany Alpha" -> "Alpha", "Western Daemon" -> "Daemon")
             if manuf and n.startswith(manuf):
                 stripped = n[len(manuf):].strip()
-                stripped_slug = re.sub(r"[^a-z0-9]+", "-", stripped).strip("-")
+                stripped_slug = _RE_NON_ALPHANUMERIC_SLUG.sub("-", stripped).strip("-")
                 if stripped_slug:
                     candidates.append(f"{stripped_slug}.png")
-                clean_stripped = re.sub(r"[^a-z0-9]", "", stripped)
+                clean_stripped = _RE_NON_ALPHANUMERIC.sub("", stripped)
                 if clean_stripped:
                     candidates.append(f"{clean_stripped}.png")
 
@@ -315,8 +332,10 @@ def resolve_vehicle_image(row: dict[str, Any], assets_dir: Path | str | None = N
             continue
         matched = img_index.get(cand.lower())
         if matched is not None:
+            _IMAGE_RESOLVE_CACHE[cache_key] = matched
             return matched
 
+    _IMAGE_RESOLVE_CACHE[cache_key] = None
     return None
 
 
@@ -333,7 +352,7 @@ def build_entry_embed_and_file(
         image_path = resolve_vehicle_image(row, assets_dir=assets_dir)
         if image_path:
             slug = str(row.get("id") or row.get("model") or "vehicle").strip().lower()
-            slug = re.sub(r"[^a-z0-9_]+", "_", slug) or "vehicle"
+            slug = _RE_SAFE_SLUG.sub("_", slug) or "vehicle"
             attachment_filename = f"{slug}.png"
             file = discord.File(fp=str(image_path), filename=attachment_filename)
 
