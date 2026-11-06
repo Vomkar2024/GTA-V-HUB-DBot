@@ -156,6 +156,40 @@ class ApiServerUnitTests(unittest.TestCase):
         self.assertEqual(vehicles[0]["name"], "Krieger")  # Highest price
         self.assertEqual(vehicles[-1]["name"], "Zentorno")  # Lowest price
 
+    def test_handle_vehicles_sorting_none_remains_at_end(self) -> None:
+        vehicles_with_none = self.sample_vehicles + [
+            {
+                "id": "unpriced-kart",
+                "name": "Unpriced Kart",
+                "manufacturer": "Dinka",
+                "class": "Sports",
+                "price": None,
+                "drivetrain": "RWD",
+                "model": "kart",
+                "top_speed": None,
+                "lap_time": None,
+            }
+        ]
+        (self.data_dir / "vehicles.json").write_text(json.dumps(vehicles_with_none), encoding="utf-8")
+        req_desc = make_mocked_request("GET", "/api/vehicles?sort=price&sortReverse=true")
+        resp_desc = run_coro(self.controller.handle_vehicles(req_desc))
+        data_desc = json.loads(resp_desc.text)["payload"]["vehicles"]
+        self.assertEqual(data_desc[0]["name"], "Krieger")
+        self.assertEqual(data_desc[-1]["name"], "Unpriced Kart")
+
+        req_asc = make_mocked_request("GET", "/api/vehicles?sort=price&sortReverse=false")
+        resp_asc = run_coro(self.controller.handle_vehicles(req_asc))
+        data_asc = json.loads(resp_asc.text)["payload"]["vehicles"]
+        self.assertEqual(data_asc[0]["name"], "Zentorno")
+        self.assertEqual(data_asc[-1]["name"], "Unpriced Kart")
+
+        # Top speed sort reverse
+        req_spd = make_mocked_request("GET", "/api/vehicles?sort=top_speed&sortReverse=true")
+        resp_spd = run_coro(self.controller.handle_vehicles(req_spd))
+        data_spd = json.loads(resp_spd.text)["payload"]["vehicles"]
+        self.assertEqual(data_spd[0]["name"], "Krieger")
+        self.assertEqual(data_spd[-1]["name"], "Unpriced Kart")
+
     def test_handle_vehicle_detail(self) -> None:
         req_found = make_mocked_request("GET", "/api/vehicles/comet-s2", match_info={"id": "comet-s2"})
         resp_found = run_coro(self.controller.handle_vehicle_detail(req_found))

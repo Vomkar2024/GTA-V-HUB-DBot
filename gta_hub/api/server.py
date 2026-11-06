@@ -276,15 +276,24 @@ class CatalogueApiController:
         if sort in ("alphabet", "name"):
             filtered.sort(key=lambda v: (v["name"].casefold(), v["manufacturer"].casefold()), reverse=reverse)
         elif sort == "price":
-            filtered.sort(key=lambda v: (v["price"] is None, v["price"] or 0), reverse=reverse)
+            if reverse:
+                filtered.sort(key=lambda v: (v["price"] is not None, v["price"] or 0), reverse=True)
+            else:
+                filtered.sort(key=lambda v: (v["price"] is None, v["price"] or 0), reverse=False)
         elif sort == "manufacturer":
             filtered.sort(key=lambda v: (v["manufacturer"].casefold(), v["name"].casefold()), reverse=reverse)
         elif sort == "class":
             filtered.sort(key=lambda v: (v["class"].casefold(), v["name"].casefold()), reverse=reverse)
         elif sort == "top_speed":
-            filtered.sort(key=lambda v: (v["top_speed"] is None, v["top_speed"] or 0.0), reverse=reverse)
+            if reverse:
+                filtered.sort(key=lambda v: (v["top_speed"] is not None, v["top_speed"] or 0.0), reverse=True)
+            else:
+                filtered.sort(key=lambda v: (v["top_speed"] is None, v["top_speed"] or 0.0), reverse=False)
         elif sort == "lap_time":
-            filtered.sort(key=lambda v: (v["lap_time"] is None, v["lap_time"] or 999999.0), reverse=reverse)
+            if reverse:
+                filtered.sort(key=lambda v: (v["lap_time"] is not None, v["lap_time"] or 0.0), reverse=True)
+            else:
+                filtered.sort(key=lambda v: (v["lap_time"] is None, v["lap_time"] or 999999.0), reverse=False)
 
         total = len(filtered)
         total_pages = max(1, ceil(total / per_page)) if total > 0 else 1

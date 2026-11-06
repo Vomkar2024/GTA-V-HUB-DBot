@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from gta_hub.branding import make_embed
+from gta_hub.branding import make_embed, safe_latency_ms
 from gta_hub.views import AdminPanelView, make_admin_panel_embed
 
 
@@ -40,7 +40,7 @@ class HubAdmin(commands.GroupCog, group_name="hubadmin", group_description="GTA 
         counts = self.bot.catalog.counts()
         summary = "\n".join(f"**{kind.title()}:** {count}" for kind, count in counts.items())
         summary += f"\n**Guilds:** {len(self.bot.guilds)}"
-        summary += f"\n**Latency:** {round(self.bot.latency * 1000)} ms"
+        summary += f"\n**Latency:** {safe_latency_ms(self.bot.latency)}"
         if hasattr(self.bot, "catalog_sync") and hasattr(self.bot.catalog_sync, "history"):
             history = self.bot.catalog_sync.history()
             if history:

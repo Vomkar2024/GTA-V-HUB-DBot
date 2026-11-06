@@ -73,6 +73,44 @@ class Community(commands.Cog):
         embed.add_field(name="Last claim (UTC)", value=str(stats["last_claim"]), inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @community.command(name="leaderboard", description="View top community players by HUB credits or daily streaks")
+    @app_commands.describe(metric="Ranking metric: HUB Credits or Daily Streaks")
+    @app_commands.choices(metric=[
+        app_commands.Choice(name="HUB Credits", value="credits"),
+        app_commands.Choice(name="Daily Streaks", value="streaks"),
+    ])
+    async def leaderboard(
+        self,
+        interaction: discord.Interaction,
+        metric: app_commands.Choice[str] | None = None,
+    ) -> None:
+        selected_metric = metric.value if metric is not None else "credits"
+        rows = await self.bot.db.get_leaderboard(metric=selected_metric, limit=10)
+        if not rows:
+            await interaction.response.send_message(
+                embed=make_embed("GTA V HUB Leaderboard", "No community activity recorded yet. Use `/daily` to claim credits!"),
+                ephemeral=True,
+            )
+            return
+
+        is_credits = selected_metric == "credits"
+        title = "Top HUB Credits" if is_credits else "Top Daily Streaks"
+        embed = make_embed(f"GTA V HUB • Leaderboard ({title})")
+        lines: list[str] = []
+        medals = ["🥇", "🥈", "🥉"]
+        for rank, row in enumerate(rows, start=1):
+            badge = medals[rank - 1] if rank <= 3 else f"`#{rank}`"
+            user_mention = f"<@{row['discord_user_id']}>"
+            profile_tag = f" • **{row['rockstar_name']}** ({row['platform']})" if row.get("rockstar_name") else ""
+            if is_credits:
+                score_label = f"**{row['total_credits']:,}** credits ({row['streak']}d streak)"
+            else:
+                score_label = f"**{row['streak']}** days ({row['total_credits']:,} credits)"
+            lines.append(f"{badge} {user_mention}{profile_tag} — {score_label}")
+
+        embed.description = "\n".join(lines)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Community(bot))

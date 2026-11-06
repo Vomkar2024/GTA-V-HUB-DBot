@@ -8,6 +8,8 @@ from typing import Any
 import aiohttp
 import discord
 
+from gta_hub.branding import FOOTER, PURPLE
+
 
 class GTAService:
     def __init__(self, data_file: Path) -> None:
@@ -184,7 +186,7 @@ class GTAService:
         vehicles: list[dict[str, Any]],
         attachment_filename: str | None = None,
     ) -> discord.Embed:
-        embed = discord.Embed(title="GTA Online Vehicles", color=0xE85D24)
+        embed = discord.Embed(title="GTA Online Vehicles", color=PURPLE)
         for vehicle in vehicles[:8]:
             embed.add_field(
                 name=self.value(vehicle, "name")[:256],
@@ -201,7 +203,7 @@ class GTAService:
         return embed
 
     def compare_embed(self, first: dict[str, Any], second: dict[str, Any]) -> discord.Embed:
-        embed = discord.Embed(title="Vehicle comparison", color=0xE85D24)
+        embed = discord.Embed(title="Vehicle comparison", color=PURPLE)
         fields = [
             ("Manufacturer", ("manufacturer",)),
             ("Class", ("vehicle_class", "class")),
@@ -218,10 +220,11 @@ class GTAService:
             embed.add_field(
                 name=self.value(vehicle, "name")[:256], value="\n".join(lines)[:1024], inline=True
             )
+        embed.set_footer(text=FOOTER)
         return embed
 
     def garage_embed(self, rows: list[tuple[str, str]], user: discord.abc.User) -> discord.Embed:
-        embed = discord.Embed(title=f"{user.display_name}'s Garage", color=0xE85D24)
+        embed = discord.Embed(title=f"{user.display_name}'s Garage", color=PURPLE)
         embed.description = (
             "\n".join(f"• {name}" for name, _ in rows[:40])
             if rows
@@ -255,7 +258,7 @@ class GTAService:
 
     @staticmethod
     def profile_embed(data: dict[str, str]) -> discord.Embed:
-        embed = discord.Embed(title=f"Player profile: {data['query']}", color=0xE85D24)
+        embed = discord.Embed(title=f"Player profile: {data['query']}", color=PURPLE)
         embed.description = data["message"]
         embed.set_footer(text="GTA V HUB • Los Santos Network")
         return embed
@@ -281,7 +284,7 @@ class GTAService:
 
     @staticmethod
     def crew_embed(data: dict[str, Any]) -> discord.Embed:
-        embed = discord.Embed(title=f"Crew lookup: {data['query']}", color=0xE85D24)
+        embed = discord.Embed(title=f"Crew lookup: {data['query']}", color=PURPLE)
         if data.get("error"):
             embed.description = f"Service error: {data['error'][:250]}"
             return embed
@@ -312,7 +315,7 @@ class GTAService:
 
     @staticmethod
     def jobs_embed(data: dict[str, Any]) -> discord.Embed:
-        embed = discord.Embed(title=f"Creator jobs: {data['query']}", color=0xE85D24)
+        embed = discord.Embed(title=f"Creator jobs: {data['query']}", color=PURPLE)
         if data.get("error"):
             embed.description = f"Rockstar job lookup unavailable: {data['error'][:250]}"
             return embed

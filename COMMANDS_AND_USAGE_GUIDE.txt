@@ -33,6 +33,11 @@ TABLE OF CONTENTS
   can see the output. This keeps public community channels clean and clutter-free
   while allowing you to explore catalog items privately.
 
+- Real-Time Autocomplete:
+  Vehicle, wheel, job, creator, compare, and garage commands feature real-time
+  autocomplete suggestions as you type. When removing vehicles from your garage,
+  the autocomplete dynamically suggests the vehicles currently in your collection!
+
 - Interactive Menus & Select Dropdowns:
   When a search returns multiple matching items (up to 25 entries), the bot
   attaches an interactive select menu ("Select a result to view details...").
@@ -279,6 +284,22 @@ Command: /community stats
 - Example:
     /community stats
     /community stats member:@RacerX
+
+--------------------------------------------------------------------------------
+Command: /community leaderboard
+--------------------------------------------------------------------------------
+- Syntax:
+    /community leaderboard [metric:<credits|streaks>]
+- Arguments:
+    * metric (choice, optional): Choose whether to rank by `HUB Credits` (default)
+      or `Daily Streaks`.
+- Description:
+    Displays the top 10 community leaderboard. Highlights top 3 positions with
+    podium medals (🥇, 🥈, 🥉), shows members' linked Social Club tags and gaming
+    platforms, and lists overall credit totals and active daily streaks.
+- Example:
+    /community leaderboard
+    /community leaderboard metric:streaks
 
 --------------------------------------------------------------------------------
 Command: /garage

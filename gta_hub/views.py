@@ -6,7 +6,7 @@ from typing import Any
 
 import discord
 
-from gta_hub.branding import make_embed, safe_url, truncate
+from gta_hub.branding import make_embed, safe_latency_ms, safe_url, truncate
 
 HELP_SECTIONS: dict[str, str] = {
     "Overview": (
@@ -38,6 +38,7 @@ HELP_SECTIONS: dict[str, str] = {
         "`/community link` — Link your Rockstar nickname and platform.\n"
         "`/community profile` — View a linked community profile.\n"
         "`/community stats` — View HUB credits, daily claims, and streak.\n"
+        "`/community leaderboard` — View top members by credits or streaks.\n"
         "`/cars` — Search vehicles using the shared vehicle catalogue.\n"
         "`/garage` — View, add, and remove saved vehicles.\n"
         "`/compare` — Compare two vehicles.\n"
@@ -95,7 +96,7 @@ class AdminPanelView(discord.ui.View):
         counts = self.bot.catalog.counts()
         summary = "\n".join(f"**{kind.title()}:** {count}" for kind, count in counts.items())
         summary += f"\n**Guilds:** {len(self.bot.guilds)}"
-        summary += f"\n**Latency:** {round(self.bot.latency * 1000)} ms"
+        summary += f"\n**Latency:** {safe_latency_ms(getattr(self.bot, 'latency', None))}"
         if hasattr(self.bot, "catalog_sync") and hasattr(self.bot.catalog_sync, "history"):
             history = self.bot.catalog_sync.history()
             if history:
@@ -119,6 +120,11 @@ class AdminPanelView(discord.ui.View):
         counts = self.bot.catalog.counts()
         summary = "\n".join(f"**{kind.title()}:** {count}" for kind, count in counts.items())
         await interaction.response.send_message(embed=make_embed("Catalogs Reloaded", summary), ephemeral=True)
+
+    async def on_timeout(self) -> None:
+        for child in self.children:
+            if hasattr(child, "disabled"):
+                child.disabled = True
 
 
 class HelpSelect(discord.ui.Select):
@@ -153,6 +159,11 @@ class HelpView(discord.ui.View):
             valid = safe_url(url)
             if valid:
                 self.add_item(discord.ui.Button(label=label, url=valid, emoji=emoji))
+
+    async def on_timeout(self) -> None:
+        for child in self.children:
+            if hasattr(child, "disabled"):
+                child.disabled = True
 
 
 class CatalogSelect(discord.ui.Select):
@@ -190,6 +201,11 @@ class CatalogResultsView(discord.ui.View):
     def __init__(self, rows: list[dict[str, Any]], *, kind: str):
         super().__init__(timeout=150)
         self.add_item(CatalogSelect(rows, kind=kind))
+
+    async def on_timeout(self) -> None:
+        for child in self.children:
+            if hasattr(child, "disabled"):
+                child.disabled = True
 
 
 ROMAN_NUMERALS: dict[str, str] = {

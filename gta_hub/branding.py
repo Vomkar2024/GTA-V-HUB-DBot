@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import math
+from typing import Any
+
 import discord
 
 PURPLE = discord.Color(0xA855F7)
@@ -8,6 +11,17 @@ MUTED = discord.Color(0x9B8AAE)
 
 BRAND = "GTA V HUB"
 FOOTER = "GTA V HUB • Los Santos Network"
+
+
+def safe_latency_ms(latency: Any) -> str:
+    """Format bot gateway latency safely into milliseconds, avoiding inf/nan overflow."""
+    try:
+        val = float(latency)
+        if math.isinf(val) or math.isnan(val) or val < 0:
+            return "N/A"
+        return f"{round(val * 1000)} ms"
+    except (TypeError, ValueError, OverflowError):
+        return "N/A"
 
 
 def make_embed(

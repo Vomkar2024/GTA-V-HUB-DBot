@@ -157,6 +157,22 @@ class LegacyCommands(commands.Cog):
             ephemeral=True,
         )
 
+    @garage.autocomplete("vehicle")
+    async def garage_vehicle_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        action_choice = getattr(interaction.namespace, "action", "")
+        if action_choice == "remove":
+            try:
+                garage_items = await self.bot.db.get_garage(interaction.user.id)
+                user_cars = [row[0] for row in garage_items]
+                matches = [c for c in user_cars if current.casefold() in c.casefold()]
+                return [app_commands.Choice(name=c[:100], value=c[:100]) for c in matches[:25]]
+            except Exception:
+                pass
+        choices = self.bot.gta.autocomplete_vehicle_names(current)
+        return [app_commands.Choice(name=name[:100], value=name[:100]) for name in choices[:25]]
+
     @app_commands.command(name="compare", description="Compare two GTA Online vehicles")
     @app_commands.describe(vehicle_one="First vehicle", vehicle_two="Second vehicle")
     async def compare(
@@ -172,6 +188,14 @@ class LegacyCommands(commands.Cog):
         await interaction.response.send_message(
             embed=self.bot.gta.compare_embed(first, second), ephemeral=True
         )
+
+    @compare.autocomplete("vehicle_one")
+    @compare.autocomplete("vehicle_two")
+    async def compare_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        choices = self.bot.gta.autocomplete_vehicle_names(current)
+        return [app_commands.Choice(name=name[:100], value=name[:100]) for name in choices[:25]]
 
     @app_commands.command(name="crew", description="Look up a Rockstar Social Club crew by crew ID")
     @app_commands.describe(crew_id="Rockstar Social Club crew ID")

@@ -24,6 +24,14 @@ class Jobs(commands.Cog):
         rows = self.bot.catalog.search("jobs", query)
         await show_catalog_results(interaction, kind="jobs", query=query, rows=rows)
 
+    @search_job.autocomplete("query")
+    async def search_job_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        rows = self.bot.catalog.search("jobs", current, limit=25)
+        names = [str(r.get("name") or "") for r in rows if r.get("name")]
+        return [app_commands.Choice(name=name[:100], value=name[:100]) for name in names[:25]]
+
     @job.command(name="random", description="Pick a random job from your catalog")
     async def random_job(self, interaction: discord.Interaction) -> None:
         rows = self.bot.catalog.all("jobs")
@@ -90,6 +98,14 @@ class Jobs(commands.Cog):
         rows = self.bot.catalog.search("creators", query)
         await show_catalog_results(interaction, kind="creators", query=query, rows=rows)
 
+    @search_creator.autocomplete("query")
+    async def search_creator_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        rows = self.bot.catalog.search("creators", current, limit=25)
+        names = [str(r.get("name") or "") for r in rows if r.get("name")]
+        return [app_commands.Choice(name=name[:100], value=name[:100]) for name in names[:25]]
+
     @creator.command(name="playlists", description="Show playlist entries for a creator")
     async def creator_playlists(self, interaction: discord.Interaction, name: str) -> None:
         creators = self.bot.catalog.search("creators", name, limit=5)
@@ -110,6 +126,12 @@ class Jobs(commands.Cog):
                     link = safe_url(playlist.get("url"))
                     embed.add_field(name=label, value=f"[Open playlist]({link})" if link else "No link supplied", inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @creator_playlists.autocomplete("name")
+    async def creator_playlists_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        return await self.search_creator_autocomplete(interaction, current)
 
 
 async def setup(bot: commands.Bot) -> None:

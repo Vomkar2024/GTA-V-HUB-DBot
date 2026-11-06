@@ -4,7 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from gta_hub.branding import make_embed
+from gta_hub.branding import make_embed, safe_latency_ms
 from gta_hub.views import HELP_SECTIONS, HelpView
 
 
@@ -24,9 +24,9 @@ class General(commands.Cog):
 
     @app_commands.command(name="ping", description="Check GTA V HUB response latency")
     async def ping(self, interaction: discord.Interaction) -> None:
-        latency = round(self.bot.latency * 1000)
+        latency = safe_latency_ms(self.bot.latency)
         await interaction.response.send_message(
-            embed=make_embed("GTA V HUB • Connection", f"🟣 Gateway latency: **{latency} ms**"),
+            embed=make_embed("GTA V HUB • Connection", f"🟣 Gateway latency: **{latency}**"),
             ephemeral=True,
         )
 

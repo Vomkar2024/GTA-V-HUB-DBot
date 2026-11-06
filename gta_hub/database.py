@@ -123,6 +123,32 @@ class Database:
             "claim_count": row[3],
         }
 
+    async def get_leaderboard(self, metric: str = "credits", limit: int = 10) -> list[dict[str, Any]]:
+        conn = self._connection()
+        col = "total_credits" if metric == "credits" else "streak"
+        safe_limit = max(1, min(limit, 25))
+        query = f"""
+            SELECT d.discord_user_id, d.streak, d.total_credits, d.claim_count,
+                   p.rockstar_name, p.platform
+            FROM daily_claims d
+            LEFT JOIN profiles p ON d.discord_user_id = p.discord_user_id
+            ORDER BY d.{col} DESC, d.claim_count DESC
+            LIMIT ?
+        """
+        async with conn.execute(query, (safe_limit,)) as cursor:
+            rows = await cursor.fetchall()
+        return [
+            {
+                "discord_user_id": row[0],
+                "streak": row[1],
+                "total_credits": row[2],
+                "claim_count": row[3],
+                "rockstar_name": row[4],
+                "platform": row[5],
+            }
+            for row in rows
+        ]
+
     async def claim_daily(self, user_id: int) -> dict[str, int | bool]:
         """Atomically allow at most one daily claim per UTC calendar day."""
         conn = self._connection()

@@ -23,6 +23,7 @@ class CommunityCogTests(unittest.TestCase):
         self.bot.db.set_profile = AsyncMock()
         self.bot.db.get_profile = AsyncMock()
         self.bot.db.get_community_stats = AsyncMock()
+        self.bot.db.get_leaderboard = AsyncMock()
         self.cog = Community(self.bot)
 
     def test_link_validation_rejects_short_name(self) -> None:
@@ -112,6 +113,52 @@ class CommunityCogTests(unittest.TestCase):
         self.assertIn("HUB Credits earned", field_names)
         self.assertIn("Daily claims", field_names)
         self.assertIn("Current streak", field_names)
+
+    def test_leaderboard_empty(self) -> None:
+        interaction = MagicMock()
+        interaction.response.send_message = AsyncMock()
+        self.bot.db.get_leaderboard.return_value = []
+
+        run_coro(self.cog.leaderboard.callback(self.cog, interaction, metric=None))
+        interaction.response.send_message.assert_called_once()
+        sent_embed = interaction.response.send_message.call_args[1].get("embed")
+        self.assertIsNotNone(sent_embed)
+        self.assertIn("No community activity recorded yet", sent_embed.description)
+
+    def test_leaderboard_with_records(self) -> None:
+        interaction = MagicMock()
+        interaction.response.send_message = AsyncMock()
+        self.bot.db.get_leaderboard.return_value = [
+            {
+                "discord_user_id": "111",
+                "streak": 10,
+                "total_credits": 3000,
+                "claim_count": 15,
+                "rockstar_name": "RacerOne",
+                "platform": "PC",
+            },
+            {
+                "discord_user_id": "222",
+                "streak": 3,
+                "total_credits": 800,
+                "claim_count": 4,
+                "rockstar_name": None,
+                "platform": None,
+            },
+        ]
+
+        choice = MagicMock(spec=app_commands.Choice)
+        choice.value = "credits"
+        run_coro(self.cog.leaderboard.callback(self.cog, interaction, metric=choice))
+        self.bot.db.get_leaderboard.assert_called_once_with(metric="credits", limit=10)
+        interaction.response.send_message.assert_called_once()
+        sent_embed = interaction.response.send_message.call_args[1].get("embed")
+        self.assertIsNotNone(sent_embed)
+        self.assertIn("🥇", sent_embed.description)
+        self.assertIn("<@111>", sent_embed.description)
+        self.assertIn("RacerOne", sent_embed.description)
+        self.assertIn("3,000", sent_embed.description)
+        self.assertIn("<@222>", sent_embed.description)
 
 
 if __name__ == "__main__":
