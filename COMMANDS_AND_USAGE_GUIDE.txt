@@ -1,0 +1,506 @@
+================================================================================
+                    GTA V HUB DISCORD BOT — COMMAND REFERENCE & USER GUIDE
+================================================================================
+
+Welcome to the comprehensive command manual and user guide for the GTA V HUB
+Discord Bot. This guide covers all available slash commands across the primary
+command groups: Vehicles & Wheels, Jobs & Creators, Community & Economy, and
+Legacy Lookups.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1. General Discord Bot Usage & Navigation
+2. Vehicles & Wheels Commands
+3. Jobs & Creators Commands
+4. Community, Garage & Economy Commands
+5. Legacy & Lookups Commands (ENABLE_LEGACY_COMMANDS=true)
+6. Step-by-Step "How to Use" Scenarios & Workflows
+7. Troubleshooting & FAQs
+
+================================================================================
+1. GENERAL DISCORD BOT USAGE & NAVIGATION
+================================================================================
+
+- Slash Commands:
+  All interactions with GTA V HUB are executed through modern Discord Slash
+  Commands. In any supported text channel, type `/` followed by the command name.
+  Discord will display an interactive preview showing required and optional
+  arguments.
+
+- Ephemeral (Private) Responses:
+  Many command responses are returned as "ephemeral" messages, meaning only you
+  can see the output. This keeps public community channels clean and clutter-free
+  while allowing you to explore catalog items privately.
+
+- Interactive Menus & Select Dropdowns:
+  When a search returns multiple matching items (up to 25 entries), the bot
+  attaches an interactive select menu ("Select a result to view details...").
+  Picking an entry from the dropdown dynamically updates the embed with deep
+  specifications, performance statistics, high-resolution imagery, and links.
+
+- Channel Restrictions:
+  If server administrators have configured `ALLOWED_CHANNEL_IDS`, bot commands
+  will only execute within designated channels. Attempting to run a command in an
+  unauthorized channel will prompt a polite redirection notice.
+
+================================================================================
+2. VEHICLES & WHEELS COMMANDS
+================================================================================
+
+Explore the extensive GTA Online catalog of cars, motorcycles, trucks, planes,
+boats, and custom wheels.
+
+--------------------------------------------------------------------------------
+Command: /vehicle search
+--------------------------------------------------------------------------------
+- Syntax:
+    /vehicle search query:<text>
+- Arguments:
+    * query (string, required): Name of the vehicle or vehicle manufacturer.
+- Description:
+    Searches the vehicle database for matching records. Displays an overview
+    embed with an interactive dropdown menu allowing you to select and view
+    full details (price, top speed, lap time, vehicle class, manufacturer, and
+    render images) for any matched vehicle.
+- Example:
+    /vehicle search query:Kreiger
+    /vehicle search query:Pegassi
+
+--------------------------------------------------------------------------------
+Command: /vehicle class
+--------------------------------------------------------------------------------
+- Syntax:
+    /vehicle class name:<class_name>
+- Arguments:
+    * name (string, required): Vehicle class name (e.g., Sports, Super, Muscle,
+      Off-Road, Sedans, Coupes, Motorcycles, Tuners, Emergency).
+- Description:
+    Lists vehicles belonging to a specific class (up to the top 25 records).
+    Use the attached dropdown selector to inspect individual vehicles in that
+    class.
+- Example:
+    /vehicle class name:Super
+    /vehicle class name:Muscle
+
+--------------------------------------------------------------------------------
+Command: /vehicle tier
+--------------------------------------------------------------------------------
+- Syntax:
+    /vehicle tier class_name:<class_name> tier:<tier_letter>
+- Arguments:
+    * class_name (string, required): Vehicle class to evaluate (e.g., Sports).
+    * tier (string, required): Performance tier ranking (e.g., S, A, B, C, D).
+- Description:
+    Filters vehicles within a class based on community and competitive racing
+    performance tiers. Ideal for racers looking for top-tier competitive picks.
+- Example:
+    /vehicle tier class_name:Sports tier:A
+    /vehicle tier class_name:Super tier:S
+
+--------------------------------------------------------------------------------
+Command: /wheel search
+--------------------------------------------------------------------------------
+- Syntax:
+    /wheel search query:<text>
+- Arguments:
+    * query (string, required): Wheel or rim model name.
+- Description:
+    Performs a name search across the wheel catalog. Returns matching rims with
+    an interactive dropdown menu displaying wheel categories, visual styles, and
+    handling characteristics.
+- Example:
+    /wheel search query:Cosmo
+    /wheel search query:Challenger
+
+--------------------------------------------------------------------------------
+Command: /wheel type
+--------------------------------------------------------------------------------
+- Syntax:
+    /wheel type name:<type_name>
+- Arguments:
+    * name (string, required): Wheel category (e.g., Sport, SUV, Tuner, Off-Road,
+      Muscle, Lowrider, High End, Track, Street, Benny's Originals).
+- Description:
+    Displays all wheels available in the specified category, enabling players to
+    browse options for custom Los Santos Customs builds.
+- Example:
+    /wheel type name:Tuner
+    /wheel type name:Sport
+
+--------------------------------------------------------------------------------
+Command: /wheel effects
+--------------------------------------------------------------------------------
+- Syntax:
+    /wheel effects [wheel_type:<type>] [traction_bias:<front|rear>]
+                   [anti_roll:<+|->] [slip_angle:<+|->]
+- Arguments:
+    * wheel_type    (string, optional): Filter by wheel category.
+    * traction_bias (string, optional): Filter by grip distribution ('front' or 'rear').
+    * anti_roll     (string, optional): Filter by body roll stiffness modifier ('+' or '-').
+    * slip_angle    (string, optional): Filter by drift/slide angle characteristic ('+' or '-').
+    * NOTE: You must provide at least one filter argument.
+- Description:
+    Advanced tuning tool that filters wheels based on handling characteristics,
+    clipping properties, and physics modifiers. Essential for competitive
+    stunt, race, and drift builders.
+- Example:
+    /wheel effects wheel_type:Off-Road
+    /wheel effects traction_bias:rear anti_roll:+
+
+================================================================================
+3. JOBS & CREATORS COMMANDS
+================================================================================
+
+Discover, share, and track curated GTA Online custom jobs, stunt races, deathmatches,
+and verified community creators.
+
+--------------------------------------------------------------------------------
+Command: /job search
+--------------------------------------------------------------------------------
+- Syntax:
+    /job search query:<text>
+- Arguments:
+    * query (string, required): Job title, keyword, or creator username.
+- Description:
+    Searches the catalog (`data/jobs.json`) for custom jobs. Displays an
+    interactive menu with job links to Social Club, platform tags (PC, PS, Xbox),
+    and descriptions.
+- Example:
+    /job search query:Stunt Race
+    /job search query:Parkour
+
+--------------------------------------------------------------------------------
+Command: /job random
+--------------------------------------------------------------------------------
+- Syntax:
+    /job random
+- Arguments:
+    None.
+- Description:
+    Randomly selects a curated job from `data/jobs.json`. Outputs an embed with
+    the job name, description, creator, supported platform, and direct bookmark
+    link.
+- Example:
+    /job random
+
+--------------------------------------------------------------------------------
+Command: /job sync
+--------------------------------------------------------------------------------
+- Syntax:
+    /job sync url:<https_url>
+- Arguments:
+    * url (string, required): Public Rockstar Games Social Club job URL.
+- Description:
+    Resolves and parses a Rockstar Social Club job link through your configured
+    backend sync provider (`GTA_HUB_SYNC_API_URL` in `.env`). Fetches metadata,
+    title, description, platform, and creator info in real-time.
+- Example:
+    /job sync url:https://socialclub.rockstargames.com/job/gtav/ab12cd34ef56
+
+--------------------------------------------------------------------------------
+Command: /creator search
+--------------------------------------------------------------------------------
+- Syntax:
+    /creator search query:<text>
+- Arguments:
+    * query (string, required): Content creator username or keyword.
+- Description:
+    Searches community content creators recorded in `data/creators.json`.
+    Provides links to their profiles, platforms, and created maps.
+- Example:
+    /creator search query:Broughy
+    /creator search query:StuntMaster
+
+--------------------------------------------------------------------------------
+Command: /creator playlists
+--------------------------------------------------------------------------------
+- Syntax:
+    /creator playlists name:<creator_name>
+- Arguments:
+    * name (string, required): Name of the content creator.
+- Description:
+    Displays verified job playlists published by the specified creator. Each
+    playlist entry provides direct links to bookmark the playlist directly to
+    your Rockstar Games account.
+- Example:
+    /creator playlists name:Broughy1322
+
+================================================================================
+4. COMMUNITY, GARAGE & ECONOMY COMMANDS
+================================================================================
+
+Manage your linked Social Club persona, build your dream virtual garage, compare
+car performance, and earn daily HUB community credits.
+
+--------------------------------------------------------------------------------
+Command: /community link
+--------------------------------------------------------------------------------
+- Syntax:
+    /community link rockstar_name:<name> platform:<PC|PlayStation|Xbox>
+- Arguments:
+    * rockstar_name (string, required): Your Rockstar Games Social Club username
+      (2 to 32 characters).
+    * platform (choice, required): Choose from `PC`, `PlayStation`, or `Xbox`.
+- Description:
+    Links your in-game identity and primary console/PC platform to your Discord
+    account. Stored securely in the local SQLite database.
+- Example:
+    /community link rockstar_name:SpeedDemon_LS platform:PC
+    /community link rockstar_name:V_Racer99 platform:PlayStation
+
+--------------------------------------------------------------------------------
+Command: /community profile
+--------------------------------------------------------------------------------
+- Syntax:
+    /community profile [member:<@user>]
+- Arguments:
+    * member (user, optional): Mention another Discord user to view their
+      profile. Omit to view your own profile.
+- Description:
+    Displays a player card featuring the linked Rockstar Social Club nickname,
+    gaming platform, and Discord profile avatar.
+- Example:
+    /community profile
+    /community profile member:@Omkar
+
+--------------------------------------------------------------------------------
+Command: /community stats
+--------------------------------------------------------------------------------
+- Syntax:
+    /community stats [member:<@user>]
+- Arguments:
+    * member (user, optional): Mention another Discord user to view their stats.
+      Omit to view your own stats.
+- Description:
+    Shows community activity metrics: total HUB credits earned, total daily
+    claims completed, current consecutive daily streak (in days), and the UTC
+    timestamp of your last claim.
+- Example:
+    /community stats
+    /community stats member:@RacerX
+
+--------------------------------------------------------------------------------
+Command: /garage
+--------------------------------------------------------------------------------
+- Syntax:
+    /garage action:<view|add|remove> [vehicle:<name>]
+- Arguments:
+    * action (choice, required): Choose one of:
+        - `view`: Display all vehicles currently saved in your garage.
+        - `add`: Add a validated vehicle to your collection.
+        - `remove`: Delete a vehicle from your collection.
+    * vehicle (string, required for add/remove): Name of the vehicle.
+- Description:
+    Your personal virtual garage in Discord! You can collect vehicles, view your
+    collection at any time, and curate your dream Los Santos fleet.
+- Example:
+    /garage action:view
+    /garage action:add vehicle:Krieger
+    /garage action:remove vehicle:Faggio
+
+--------------------------------------------------------------------------------
+Command: /compare
+--------------------------------------------------------------------------------
+- Syntax:
+    /compare vehicle_one:<name> vehicle_two:<name>
+- Arguments:
+    * vehicle_one (string, required): Name of the first vehicle.
+    * vehicle_two (string, required): Name of the second vehicle.
+- Description:
+    Performs a detailed, side-by-side technical comparison between two vehicles.
+    Compares top speed (mph), lap time (seconds), drive train (AWD/RWD/FWD),
+    price, mass, and class rank to determine which car dominates the track.
+- Example:
+    /compare vehicle_one:Krieger vehicle_two:Emerus
+    /compare vehicle_one:Pariah vehicle_two:Itali GTO
+
+--------------------------------------------------------------------------------
+Command: /daily
+--------------------------------------------------------------------------------
+- Syntax:
+    /daily
+- Arguments:
+    None.
+- Description:
+    Claims your daily reward of HUB community credits (100–250 credits/day).
+    Includes consecutive streak bonuses. Resets every 24 hours at 00:00 UTC.
+    If you have already claimed today, it tells you how many hours remain until
+    your next reward.
+- Example:
+    /daily
+
+================================================================================
+5. LEGACY & LOOKUPS COMMANDS (ENABLE_LEGACY_COMMANDS=true)
+================================================================================
+
+These commands are enabled when `ENABLE_LEGACY_COMMANDS=true` in `.env`. They
+provide fast autocomplete-assisted lookups and integration with external Social
+Club / creator APIs.
+
+--------------------------------------------------------------------------------
+Command: /cars name
+--------------------------------------------------------------------------------
+- Syntax:
+    /cars name query:<autocomplete_text>
+- Arguments:
+    * query (string, required): Vehicle name with dynamic real-time autocomplete.
+- Description:
+    As you type, Discord suggests matching vehicle names instantly from the
+    catalog. Selecting a choice outputs vehicle stats and render images.
+- Example:
+    /cars name query:Elegy Retro Custom
+
+--------------------------------------------------------------------------------
+Command: /cars manufacturer
+--------------------------------------------------------------------------------
+- Syntax:
+    /cars manufacturer query:<autocomplete_text>
+- Arguments:
+    * query (string, required): Manufacturer name with dynamic autocomplete.
+- Description:
+    Filters and lists vehicles produced by the chosen manufacturer (e.g., Benefactor,
+    Pegassi, Grotti, Dewbauchee, Pfister, Truffade).
+- Example:
+    /cars manufacturer query:Grotti
+
+--------------------------------------------------------------------------------
+Command: /cars class
+--------------------------------------------------------------------------------
+- Syntax:
+    /cars class query:<autocomplete_text>
+- Arguments:
+    * query (string, required): Vehicle class name with dynamic autocomplete.
+- Description:
+    Quickly browses vehicles in a category with instant autocomplete suggestions.
+- Example:
+    /cars class query:Sports Classics
+
+--------------------------------------------------------------------------------
+Command: /profile
+--------------------------------------------------------------------------------
+- Syntax:
+    /profile player:<name_or_id>
+- Arguments:
+    * player (string, required): Rockstar Social Club nickname or player ID.
+- Description:
+    Performs a player lookup via your configured external lookup provider.
+- Example:
+    /profile player:RockstarGamer123
+
+--------------------------------------------------------------------------------
+Command: /stats
+--------------------------------------------------------------------------------
+- Syntax:
+    /stats player:<name_or_id>
+- Arguments:
+    * player (string, required): Rockstar Social Club nickname or player ID.
+- Description:
+    Retrieves in-depth multiplayer player statistics (rank, cash, KD, playtime)
+    via your configured external lookup service.
+- Example:
+    /stats player:RockstarGamer123
+
+--------------------------------------------------------------------------------
+Command: /crew
+--------------------------------------------------------------------------------
+- Syntax:
+    /crew crew_id:<id>
+- Arguments:
+    * crew_id (string, required): Rockstar Social Club Crew ID.
+- Description:
+    Queries public crew information, motto, member counts, and crew emblem from
+    Rockstar Social Club.
+- Example:
+    /crew crew_id:1234567
+
+--------------------------------------------------------------------------------
+Command: /jobs
+--------------------------------------------------------------------------------
+- Syntax:
+    /jobs creator_id:<id>
+- Arguments:
+    * creator_id (string, required): Creator's Rockstar Social Club ID.
+- Description:
+    Queries published race and mission jobs created by the specified creator ID.
+- Example:
+    /jobs creator_id:98765432
+
+================================================================================
+6. STEP-BY-STEP "HOW TO USE" SCENARIOS & WORKFLOWS
+================================================================================
+
+Here are practical, step-by-step guides for everyday use cases:
+
+--------------------------------------------------------------------------------
+SCENARIO A: Researching and Purchasing Your Next Supercar
+--------------------------------------------------------------------------------
+1. Browse top vehicles in the Super class:
+      /vehicle class name:Super
+2. Review the list of results and select a car (e.g., "Progen Emerus") from the
+   dropdown menu to inspect its top speed and lap time.
+3. Compare it head-to-head against another top contender:
+      /compare vehicle_one:Emerus vehicle_two:Krieger
+4. Once you decide, save it to your personal garage:
+      /garage action:add vehicle:Emerus
+5. View your updated fleet:
+      /garage action:view
+
+--------------------------------------------------------------------------------
+SCENARIO B: Fine-Tuning Wheel Performance for Racing & Drifting
+--------------------------------------------------------------------------------
+1. Find wheels that alter anti-roll or traction characteristics:
+      /wheel effects wheel_type:Tuner traction_bias:rear
+2. Pick a wheel from the dropdown menu to inspect its handling notes and curb
+   clipping properties.
+3. Search for a specific rim model to check compatibility:
+      /wheel search query:Fujiwara
+
+--------------------------------------------------------------------------------
+SCENARIO C: Finding and Bookmarking New Stunt Races
+--------------------------------------------------------------------------------
+1. Search for custom community jobs:
+      /job search query:Wallride
+2. Use the interactive menu to view job details and click "[Open job]" to bookmark
+   it directly to your Social Club account.
+3. If you found a link on Discord or YouTube, verify it with:
+      /job sync url:https://socialclub.rockstargames.com/job/gtav/...
+4. Want inspiration for tonight's race night? Run:
+      /job random
+
+--------------------------------------------------------------------------------
+SCENARIO D: Setting Up Your Profile and Claiming Daily Rewards
+--------------------------------------------------------------------------------
+1. Connect your account:
+      /community link rockstar_name:MySocialClubTag platform:PC
+2. Verify that your profile card is updated:
+      /community profile
+3. Claim your daily HUB credits:
+      /daily
+4. Check your streak and total credits:
+      /community stats
+5. Return every 24 hours to maintain your streak bonus!
+
+================================================================================
+7. TROUBLESHOOTING & FAQS
+================================================================================
+
+Q: Why do I get a "Channel Restricted" message?
+A: The bot is configured to only respond in designated channels. Please switch to
+   the approved channel (e.g., #bot-commands or #gta-hub).
+
+Q: Why are legacy commands (/cars, /profile, /stats) not showing up?
+A: Legacy commands require `ENABLE_LEGACY_COMMANDS=true` in the server's `.env`
+   file. Ask your server administrator to enable them if needed.
+
+Q: Why did `/job sync` say "Job sync is not configured"?
+A: The sync command requires a working URL set in `GTA_HUB_SYNC_API_URL`.
+
+Q: What are HUB credits used for?
+A: HUB credits are Discord community loyalty points earned through `/daily`
+   claims. They represent community activity and are distinct from in-game GTA$.
+
+================================================================================
+End of Guide — GTA V HUB Discord Bot
+================================================================================
+
